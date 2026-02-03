@@ -1,0 +1,307 @@
+'use client';
+
+import { 
+  Group, 
+  Square, 
+  CreateGroupInput, 
+  generateId, 
+  generateInviteCode,
+  generateNumberAssignment,
+  DEFAULT_PAYOUTS,
+  shortenWallet,
+  NumberAssignment,
+} from './types';
+
+const STORAGE_KEY = 'sbboxes_v2';
+
+// Get all groups
+export function getAllGroups(): Record<string, Group> {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+// Get single group
+export function getGroup(id: string): Group | null {
+  const groups = getAllGroups();
+  return groups[id] || null;
+}
+
+// Get group by invite code
+export function getGroupByInviteCode(code: string): Group | null {
+  const groups = getAllGroups();
+  const upperCode = code.toUpperCase();
+  return Object.values(groups).find(g => g.inviteCode === upperCode) || null;
+}
+
+// Get public groups
+export function getPublicGroups(): Group[] {
+  const groups = getAllGroups();
+  return Object.values(groups)
+    .filter(g => g.visibility === 'public' && g.status !== 'completed')
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+// Save groups
+function saveGroups(groups: Record<string, Group>): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+}
+
+// Create group
+export function createGroup(input: CreateGroupInput, creatorWallet: string): Group {
+  const groups = getAllGroups();
+  const id = generateId();
+  
+  // Create empty squares
+  const squares: Square[] = Array(100).fill(null).map((_, i) => ({
+    index: i,
+    owner: null,
+    ownerDisplay: null,
+    purchasedAt: null,
+  }));
+  
+  const group: Group = {
+    id,
+    name: input.name,
+    team1: 'Kansas City Chiefs',
+    team2: 'Philadelphia Eagles',
+    pricePerSquare: input.pricePerSquare,
+    currency: input.currency,
+    visibility: input.visibility,
+    inviteCode: input.visibility === 'private' ? generateInviteCode() : null,
+    payouts: input.payouts,
+    numberRandomization: input.numberRandomization,
+    creator: creatorWallet,
+    creatorDisplay: shortenWallet(creatorWallet),
+    createdAt: Date.now(),
+    squares,
+    numbers: {
+      current: null,
+      q1: null,
+      q2: null,
+      q3: null,
+      q4: null,
+    },
+    quarterResults: [],
+    status: 'open',
+    lockedAt: null,
+  };
+  
+  groups[id] = group;
+  saveGroups(groups);
+  
+  return group;
+}
+
+// Purchase squares
+export function purchaseSquares(
+  groupId: string, 
+  squareIndices: number[], 
+  buyerWallet: string
+): Group | null {
+  const groups = getAllGroups();
+  const group = groups[groupId];
+  
+  if (!group) return null;
+  
+  const buyerDisplay = shortenWallet(buyerWallet);
+  const now = Date.now();
+  
+  squareIndices.forEach(index => {
+    if (index >= 0 && index < 100 && !group.squares[index].owner) {
+      group.squares[index] = {
+        index,
+        owner: buyerWallet,
+        ownerDisplay: buyerDisplay,
+        purchasedAt: now,
+      };
+    }
+  });
+  
+  // Check if full
+  const filledCount = group.squares.filter(s => s.owner !== null).length;
+  if (filledCount === 100) {
+    group.status = 'full';
+  }
+  
+  groups[groupId] = group;
+  saveGroups(groups);
+  
+  return group;
+}
+
+// Lock group and assign numbers
+export function lockGroup(groupId: string): Group | null {
+  const groups = getAllGroups();
+  const group = groups[groupId];
+  
+  if (!group) return null;
+  
+  // Assign numbers based on randomization setting
+  const assignment = generateNumberAssignment();
+  
+  if (group.numberRandomization === 'fixed') {
+    // Same numbers for all quarters
+    group.numbers = {
+      current: assignment,
+      q1: assignment,
+      q2: assignment,
+      q3: assignment,
+      q4: assignment,
+    };
+  } else if (group.numberRandomization === 'per-half') {
+    // Different for each half
+    const secondHalf = generateNumberAssignment();
+    group.numbers = {
+      current: assignment,
+      q1: assignment,
+      q2: assignment,
+      q3: secondHalf,
+      q4: secondHalf,
+    };
+  } else {
+    // per-quarter - different for each quarter
+    group.numbers = {
+      current: assignment,
+      q1: assignment,
+      q2: generateNumberAssignment(),
+      q3: generateNumberAssignment(),
+      q4: generateNumberAssignment(),
+    };
+  }
+  
+  group.status = 'locked';
+  group.lockedAt = Date.now();
+  
+  groups[groupId] = group;
+  saveGroups(groups);
+  
+  return group;
+}
+
+// Update numbers for a quarter (for per-quarter/per-half modes)
+export function updateQuarterNumbers(groupId: string, quarter: 1 | 2 | 3 | 4): Group | null {
+  const groups = getAllGroups();
+  const group = groups[groupId];
+  
+  if (!group) return null;
+  
+  const quarterKey = `q${quarter}` as 'q1' | 'q2' | 'q3' | 'q4';
+  const numbers = group.numbers[quarterKey];
+  
+  if (numbers) {
+    group.numbers.current = numbers;
+  }
+  
+  groups[groupId] = group;
+  saveGroups(groups);
+  
+  return group;
+}
+
+// Record quarter result
+export function recordQuarterResult(
+  groupId: string,
+  quarter: 1 | 2 | 3 | 4,
+  afcScore: number,
+  nfcScore: number
+): Group | null {
+  const groups = getAllGroups();
+  const group = groups[groupId];
+  
+  if (!group) return null;
+  
+  // Get the numbers for this quarter
+  const quarterKey = `q${quarter}` as 'q1' | 'q2' | 'q3' | 'q4';
+  const numbers = group.numbers[quarterKey];
+  
+  if (!numbers) return null;
+  
+  const afcDigit = afcScore % 10;
+  const nfcDigit = nfcScore % 10;
+  
+  const rowIndex = numbers.rowNumbers.indexOf(afcDigit);
+  const colIndex = numbers.colNumbers.indexOf(nfcDigit);
+  const winningSquareIndex = rowIndex * 10 + colIndex;
+  const winnerWallet = group.squares[winningSquareIndex]?.owner || null;
+  
+  // Check if we already have this quarter
+  const existingIndex = group.quarterResults.findIndex(r => r.quarter === quarter);
+  
+  const result = {
+    quarter,
+    afcScore,
+    nfcScore,
+    afcDigit,
+    nfcDigit,
+    winningSquareIndex,
+    winnerWallet,
+    paidOut: false,
+    paidOutAt: null,
+    txSignature: null,
+  };
+  
+  if (existingIndex >= 0) {
+    group.quarterResults[existingIndex] = result;
+  } else {
+    group.quarterResults.push(result);
+  }
+  
+  // Update status
+  if (quarter === 4) {
+    group.status = 'completed';
+  } else {
+    group.status = 'live';
+  }
+  
+  // Update current numbers for next quarter display
+  if (quarter < 4 && group.numberRandomization !== 'fixed') {
+    const nextQuarter = (quarter + 1) as 1 | 2 | 3 | 4;
+    const nextKey = `q${nextQuarter}` as 'q1' | 'q2' | 'q3' | 'q4';
+    group.numbers.current = group.numbers[nextKey];
+  }
+  
+  groups[groupId] = group;
+  saveGroups(groups);
+  
+  return group;
+}
+
+// Mark quarter as paid out
+export function markPaidOut(
+  groupId: string,
+  quarter: 1 | 2 | 3 | 4,
+  txSignature: string
+): Group | null {
+  const groups = getAllGroups();
+  const group = groups[groupId];
+  
+  if (!group) return null;
+  
+  const result = group.quarterResults.find(r => r.quarter === quarter);
+  if (result) {
+    result.paidOut = true;
+    result.paidOutAt = Date.now();
+    result.txSignature = txSignature;
+  }
+  
+  groups[groupId] = group;
+  saveGroups(groups);
+  
+  return group;
+}
+
+// Delete group (creator only)
+export function deleteGroup(groupId: string): boolean {
+  const groups = getAllGroups();
+  if (groups[groupId]) {
+    delete groups[groupId];
+    saveGroups(groups);
+    return true;
+  }
+  return false;
+}

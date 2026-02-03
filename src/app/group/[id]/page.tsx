@@ -1,42 +1,75 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import Link from 'next/link';
-
-interface Group {
-  id: string;
-  name: string;
-  team1: string;
-  team2: string;
-  pricePerSquare: number;
-  currency: string;
-  creator: string;
-  createdAt: number;
-  squares: (string | null)[];
-  numbersAssigned: boolean;
-  rowNumbers: number[] | null;
-  colNumbers: number[] | null;
-}
+import { 
+  Group, 
+  GameScore, 
+  SUPER_BOWL,
+  QuarterResult,
+  shortenWallet,
+} from '@/lib/types';
+import { 
+  getGroup, 
+  purchaseSquares, 
+  lockGroup, 
+  recordQuarterResult,
+  markPaidOut,
+} from '@/lib/store';
+import { fetchLiveScore, getGameCountdown, formatCountdown } from '@/lib/scores';
+import { getPrizeBreakdown, formatSol } from '@/lib/solana';
 
 export default function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { connected, publicKey } = useWallet();
+  
   const [group, setGroup] = useState<Group | null>(null);
   const [selectedSquares, setSelectedSquares] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [liveScore, setLiveScore] = useState<GameScore | null>(null);
+  const [countdown, setCountdown] = useState(getGameCountdown());
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
 
+  // Load group
   useEffect(() => {
-    const groups = JSON.parse(localStorage.getItem('sbboxes_groups') || '{}');
-    if (groups[id]) {
-      setGroup(groups[id]);
-    }
+    const g = getGroup(id);
+    setGroup(g);
   }, [id]);
 
+  // Refresh group periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const g = getGroup(id);
+      if (g) setGroup(g);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [id]);
+
+  // Countdown timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdown(getGameCountdown());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Live score polling
+  useEffect(() => {
+    const pollScores = async () => {
+      const score = await fetchLiveScore();
+      setLiveScore(score);
+    };
+    
+    pollScores();
+    const interval = setInterval(pollScores, 15000); // Every 15 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   const handleSquareClick = (index: number) => {
-    if (!group || group.squares[index]) return; // Already taken
+    if (!group || group.squares[index].owner || group.status !== 'open') return;
     
     if (selectedSquares.includes(index)) {
       setSelectedSquares(selectedSquares.filter(i => i !== index));
@@ -50,58 +83,50 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
     
     setLoading(true);
     
-    // Simulate payment - in production this would be actual Solana transaction
+    // TODO: Implement actual Solana payment
+    // For now, simulate purchase
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Update squares
-    const newSquares = [...group.squares];
-    selectedSquares.forEach(i => {
-      newSquares[i] = publicKey.toString().slice(0, 8);
-    });
+    const updatedGroup = purchaseSquares(id, selectedSquares, publicKey.toString());
+    if (updatedGroup) {
+      setGroup(updatedGroup);
+    }
     
-    const updatedGroup = { ...group, squares: newSquares };
-    const groups = JSON.parse(localStorage.getItem('sbboxes_groups') || '{}');
-    groups[id] = updatedGroup;
-    localStorage.setItem('sbboxes_groups', JSON.stringify(groups));
-    
-    setGroup(updatedGroup);
     setSelectedSquares([]);
     setLoading(false);
   };
 
-  const assignNumbers = () => {
-    if (!group || group.numbersAssigned) return;
-    
-    const shuffle = (arr: number[]) => {
-      const a = [...arr];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    };
-    
-    const rowNumbers = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    const colNumbers = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    
-    const updatedGroup = { ...group, numbersAssigned: true, rowNumbers, colNumbers };
-    const groups = JSON.parse(localStorage.getItem('sbboxes_groups') || '{}');
-    groups[id] = updatedGroup;
-    localStorage.setItem('sbboxes_groups', JSON.stringify(groups));
-    
-    setGroup(updatedGroup);
+  const handleLockGroup = () => {
+    const updatedGroup = lockGroup(id);
+    if (updatedGroup) {
+      setGroup(updatedGroup);
+    }
+  };
+
+  const handleRecordScore = (quarter: 1 | 2 | 3 | 4, afcScore: number, nfcScore: number) => {
+    const updatedGroup = recordQuarterResult(id, quarter, afcScore, nfcScore);
+    if (updatedGroup) {
+      setGroup(updatedGroup);
+    }
+  };
+
+  const handlePayout = async (quarter: 1 | 2 | 3 | 4) => {
+    // TODO: Implement actual Solana payout
+    const txSig = 'simulated_' + Date.now();
+    const updatedGroup = markPaidOut(id, quarter, txSig);
+    if (updatedGroup) {
+      setGroup(updatedGroup);
+    }
   };
 
   const copyInviteLink = () => {
-    const url = `${window.location.origin}/group/${id}`;
+    const url = group?.visibility === 'private' && group?.inviteCode
+      ? `Code: ${group.inviteCode}`
+      : `${window.location.origin}/group/${id}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const squaresFilled = group?.squares.filter(s => s !== null).length || 0;
-  const totalCost = selectedSquares.length * (group?.pricePerSquare || 0);
-  const isCreator = publicKey?.toString() === group?.creator;
 
   if (!group) {
     return (
@@ -114,6 +139,21 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
     );
   }
 
+  const squaresFilled = group.squares.filter(s => s.owner !== null).length;
+  const totalCost = selectedSquares.length * group.pricePerSquare;
+  const isCreator = publicKey?.toString() === group.creator;
+  const prizeBreakdown = getPrizeBreakdown(group);
+  const currentNumbers = group.numbers.current;
+
+  // Get the winning square for current display
+  const getWinningSquareIndex = (result: QuarterResult) => {
+    const numbers = group.numbers[`q${result.quarter}` as 'q1' | 'q2' | 'q3' | 'q4'];
+    if (!numbers) return null;
+    const rowIndex = numbers.rowNumbers.indexOf(result.afcDigit);
+    const colIndex = numbers.colNumbers.indexOf(result.nfcDigit);
+    return rowIndex * 10 + colIndex;
+  };
+
   return (
     <main className="min-h-screen pt-24 px-4 pb-12">
       {/* Header */}
@@ -123,178 +163,390 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
             <span className="text-2xl">🏈</span>
             <span className="font-bold text-xl text-white">Super Bowl Boxes</span>
           </Link>
-          <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-lg" />
+          <div className="flex items-center gap-4">
+            {liveScore?.isLive && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-red-500/20 rounded-lg">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                <span className="text-white font-bold">
+                  {SUPER_BOWL.teams.afc.abbreviation} {liveScore.afc} - {liveScore.nfc} {SUPER_BOWL.teams.nfc.abbreviation}
+                </span>
+                <span className="text-gray-400 text-sm">Q{liveScore.quarter} {liveScore.timeRemaining}</span>
+              </div>
+            )}
+            <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-lg" />
+          </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto">
-        {/* Group Info */}
+      <div className="max-w-6xl mx-auto">
+        {/* Group Header */}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-white">{group.name}</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-white">{group.name}</h1>
+              {group.visibility === 'private' && (
+                <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">🔒 Private</span>
+              )}
+              {group.status === 'live' && (
+                <span className="px-2 py-1 text-xs rounded-full bg-red-500/20 text-red-400 animate-pulse">🔴 LIVE</span>
+              )}
+            </div>
             <p className="text-gray-400">
               {group.pricePerSquare} {group.currency} per square • {squaresFilled}/100 filled
+              {group.numberRandomization !== 'fixed' && ` • Numbers: ${group.numberRandomization.replace('-', ' ')}`}
             </p>
           </div>
-          <button
-            onClick={copyInviteLink}
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition"
-          >
-            {copied ? '✓ Copied!' : '🔗 Copy Invite Link'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={copyInviteLink}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition"
+            >
+              {copied ? '✓ Copied!' : group.visibility === 'private' ? '🔑 Copy Code' : '🔗 Share'}
+            </button>
+          </div>
         </div>
 
-        {/* Grid */}
-        <div className="bg-white/5 rounded-2xl p-4 border border-white/10 overflow-x-auto mb-6">
-          <div className="min-w-[500px]">
-            {/* Column headers (Team 2) */}
-            <div className="flex mb-2">
-              <div className="w-12 h-8"></div>
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
-                <div key={i} className="w-12 h-8 flex items-center justify-center text-purple-400 font-bold text-sm">
-                  {group.numbersAssigned && group.colNumbers ? group.colNumbers[i] : '?'}
-                </div>
-              ))}
+        {/* Live Score Banner */}
+        {liveScore?.isLive && (
+          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30">
+            <div className="flex flex-wrap items-center justify-center gap-6">
+              <div className="text-center">
+                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.afc.name}</div>
+                <div className="text-4xl font-bold text-white">{liveScore.afc}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-500 mb-1">Q{liveScore.quarter}</div>
+                <div className="text-2xl font-mono text-white">{liveScore.timeRemaining}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.nfc.name}</div>
+                <div className="text-4xl font-bold text-white">{liveScore.nfc}</div>
+              </div>
             </div>
-            <div className="text-center text-xs text-gray-500 mb-2">{group.team2}</div>
-            
-            {/* Grid rows */}
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(row => (
-              <div key={row} className="flex">
-                {/* Row header (Team 1) */}
-                <div className="w-12 h-12 flex items-center justify-center text-purple-400 font-bold text-sm">
-                  {group.numbersAssigned && group.rowNumbers ? group.rowNumbers[row] : '?'}
+          </div>
+        )}
+
+        {/* Countdown (if game hasn't started) */}
+        {countdown && group.status !== 'live' && group.status !== 'completed' && (
+          <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+            <p className="text-gray-400 text-sm mb-1">Game starts in</p>
+            <p className="text-2xl font-bold text-white">{formatCountdown(countdown)}</p>
+          </div>
+        )}
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Main Grid Column */}
+          <div className="lg:col-span-2">
+            {/* Grid */}
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 overflow-x-auto mb-6">
+              <div className="min-w-[520px]">
+                {/* Team 2 header */}
+                <div className="text-center text-sm font-medium text-gray-400 mb-2">
+                  {group.team2} →
                 </div>
                 
-                {/* Squares */}
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(col => {
-                  const index = row * 10 + col;
-                  const owner = group.squares[index];
-                  const isSelected = selectedSquares.includes(index);
-                  const isOwn = owner && publicKey && owner === publicKey.toString().slice(0, 8);
-                  
-                  return (
-                    <button
-                      key={col}
-                      onClick={() => handleSquareClick(index)}
-                      disabled={!!owner}
-                      className={`w-12 h-12 border border-white/10 text-xs font-medium transition-all
-                        ${owner 
-                          ? isOwn 
-                            ? 'bg-purple-600 text-white cursor-default' 
-                            : 'bg-white/10 text-gray-400 cursor-default'
-                          : isSelected
-                            ? 'bg-green-600 text-white'
-                            : 'bg-white/5 hover:bg-white/10 text-gray-500 cursor-pointer'
-                        }
-                      `}
-                    >
-                      {owner || (isSelected ? '✓' : '')}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-            <div className="text-center text-xs text-gray-500 mt-2 -rotate-90 origin-center w-12 absolute -left-4">
-              {group.team1}
-            </div>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 mb-6 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white/5 border border-white/10 rounded"></div>
-            <span className="text-gray-400">Available</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-green-600 rounded"></div>
-            <span className="text-gray-400">Selected</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-purple-600 rounded"></div>
-            <span className="text-gray-400">Your squares</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white/10 rounded"></div>
-            <span className="text-gray-400">Taken</span>
-          </div>
-        </div>
-
-        {/* Purchase section */}
-        {connected ? (
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-            {selectedSquares.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-white font-medium">
-                    {selectedSquares.length} square{selectedSquares.length > 1 ? 's' : ''} selected
-                  </p>
-                  <p className="text-gray-400 text-sm">
-                    Total: {totalCost.toFixed(2)} {group.currency}
-                  </p>
+                {/* Column numbers */}
+                <div className="flex mb-1">
+                  <div className="w-12 h-10"></div>
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                    <div key={i} className="w-11 h-10 flex items-center justify-center">
+                      <span className={`text-lg font-bold ${currentNumbers ? 'text-purple-400' : 'text-gray-600'}`}>
+                        {currentNumbers ? currentNumbers.colNumbers[i] : '?'}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <button
-                  onClick={handlePurchase}
-                  disabled={loading}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white font-bold rounded-xl transition"
-                >
-                  {loading ? 'Processing...' : `Buy Squares`}
-                </button>
+                
+                {/* Grid rows */}
+                <div className="flex">
+                  {/* Team 1 label */}
+                  <div className="flex flex-col justify-center items-center w-12">
+                    <span className="text-sm font-medium text-gray-400 writing-mode-vertical transform -rotate-180" style={{ writingMode: 'vertical-rl' }}>
+                      ← {group.team1}
+                    </span>
+                  </div>
+                  
+                  {/* Grid */}
+                  <div>
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(row => (
+                      <div key={row} className="flex">
+                        {/* Row number */}
+                        <div className="w-11 h-11 flex items-center justify-center">
+                          <span className={`text-lg font-bold ${currentNumbers ? 'text-purple-400' : 'text-gray-600'}`}>
+                            {currentNumbers ? currentNumbers.rowNumbers[row] : '?'}
+                          </span>
+                        </div>
+                        
+                        {/* Squares */}
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(col => {
+                          const index = row * 10 + col;
+                          const square = group.squares[index];
+                          const isSelected = selectedSquares.includes(index);
+                          const isOwn = square.owner && publicKey && square.owner === publicKey.toString();
+                          const isWinner = group.quarterResults.some(r => getWinningSquareIndex(r) === index);
+                          
+                          return (
+                            <button
+                              key={col}
+                              onClick={() => handleSquareClick(index)}
+                              disabled={!!square.owner || group.status !== 'open'}
+                              className={`w-11 h-11 border border-white/10 text-xs font-medium transition-all flex items-center justify-center
+                                ${isWinner 
+                                  ? 'bg-yellow-500 text-black ring-2 ring-yellow-300' 
+                                  : square.owner 
+                                    ? isOwn 
+                                      ? 'bg-purple-600 text-white cursor-default' 
+                                      : 'bg-white/10 text-gray-400 cursor-default'
+                                    : isSelected
+                                      ? 'bg-green-600 text-white'
+                                      : group.status === 'open'
+                                        ? 'bg-white/5 hover:bg-white/10 text-gray-500 cursor-pointer'
+                                        : 'bg-white/5 text-gray-600 cursor-default'
+                                }
+                              `}
+                            >
+                              {isWinner ? '🏆' : square.ownerDisplay || (isSelected ? '✓' : '')}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <p className="text-gray-400 text-center">Click on squares to select them</p>
+            </div>
+
+            {/* Legend */}
+            <div className="flex flex-wrap gap-4 mb-6 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-white/5 border border-white/10 rounded"></div>
+                <span className="text-gray-400">Available</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-600 rounded"></div>
+                <span className="text-gray-400">Selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-purple-600 rounded"></div>
+                <span className="text-gray-400">Your squares</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-white/10 rounded"></div>
+                <span className="text-gray-400">Taken</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                <span className="text-gray-400">Winner</span>
+              </div>
+            </div>
+
+            {/* Purchase section */}
+            {group.status === 'open' && (
+              connected ? (
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  {selectedSquares.length > 0 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p className="text-white font-medium">
+                          {selectedSquares.length} square{selectedSquares.length > 1 ? 's' : ''} selected
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          Total: {totalCost.toFixed(2)} {group.currency}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handlePurchase}
+                        disabled={loading}
+                        className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white font-bold rounded-xl transition"
+                      >
+                        {loading ? 'Processing...' : `Buy Squares`}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 text-center">Click on squares to select them</p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+                  <p className="text-gray-400 mb-4">Connect wallet to buy squares</p>
+                  <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-xl" />
+                </div>
+              )
             )}
           </div>
-        ) : (
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
-            <p className="text-gray-400 mb-4">Connect wallet to buy squares</p>
-            <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-xl" />
-          </div>
-        )}
 
-        {/* Admin section */}
-        {isCreator && (
-          <div className="mt-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
-            <h3 className="text-white font-medium mb-2">🔧 Group Admin</h3>
-            {!group.numbersAssigned ? (
-              <div>
-                <p className="text-gray-400 text-sm mb-3">
-                  Once all squares are filled (or when you&apos;re ready), assign the random numbers.
-                </p>
-                <button
-                  onClick={assignNumbers}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition"
-                >
-                  🎲 Assign Random Numbers
-                </button>
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Quarter Results */}
+            {group.quarterResults.length > 0 && (
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <h3 className="text-white font-semibold mb-4">🏆 Results</h3>
+                <div className="space-y-3">
+                  {group.quarterResults.map(result => (
+                    <div key={result.quarter} className="p-3 rounded-lg bg-white/5">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-medium text-white">
+                          {result.quarter === 2 ? 'Halftime' : result.quarter === 4 ? 'Final' : `Q${result.quarter}`}
+                        </span>
+                        <span className="text-gray-400">
+                          {result.afcScore} - {result.nfcScore}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-400">
+                          Winner: {result.winnerWallet ? shortenWallet(result.winnerWallet) : 'N/A'}
+                        </span>
+                        {result.paidOut ? (
+                          <span className="text-green-400">✓ Paid</span>
+                        ) : (
+                          <span className="text-yellow-400">Pending</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <p className="text-green-400 text-sm">✓ Numbers have been assigned!</p>
             )}
-          </div>
-        )}
 
-        {/* Pool info */}
-        <div className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10">
-          <h3 className="text-white font-medium mb-3">💰 Pool Info</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500">Total Pool</p>
-              <p className="text-white font-bold">{(group.pricePerSquare * 100).toFixed(2)} {group.currency}</p>
+            {/* Prize Pool */}
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <h3 className="text-white font-semibold mb-4">💰 Prize Pool</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Pool</span>
+                  <span className="text-white font-bold">{formatSol(prizeBreakdown.total)} {group.currency}</span>
+                </div>
+                <hr className="border-white/10" />
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Q1 ({group.payouts.q1}%)</span>
+                  <span className="text-white">{formatSol(prizeBreakdown.q1)} {group.currency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Q2 Halftime ({group.payouts.q2}%)</span>
+                  <span className="text-white">{formatSol(prizeBreakdown.q2)} {group.currency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Q3 ({group.payouts.q3}%)</span>
+                  <span className="text-white">{formatSol(prizeBreakdown.q3)} {group.currency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Q4 Final ({group.payouts.q4}%)</span>
+                  <span className="text-white">{formatSol(prizeBreakdown.q4)} {group.currency}</span>
+                </div>
+                <hr className="border-white/10" />
+                <div className="flex justify-between">
+                  <span className="text-gray-400">House ({group.payouts.house}%)</span>
+                  <span className="text-gray-400">{formatSol(prizeBreakdown.house)} {group.currency}</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-gray-500">Collected</p>
-              <p className="text-white font-bold">{(group.pricePerSquare * squaresFilled).toFixed(2)} {group.currency}</p>
+
+            {/* Group Info */}
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <h3 className="text-white font-semibold mb-4">ℹ️ Group Info</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Creator</span>
+                  <span className="text-white">{group.creatorDisplay}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Visibility</span>
+                  <span className="text-white capitalize">{group.visibility}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Number Mode</span>
+                  <span className="text-white capitalize">{group.numberRandomization.replace('-', ' ')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Status</span>
+                  <span className={`capitalize ${
+                    group.status === 'live' ? 'text-red-400' : 
+                    group.status === 'open' ? 'text-green-400' : 'text-gray-400'
+                  }`}>
+                    {group.status}
+                  </span>
+                </div>
+                {group.visibility === 'private' && group.inviteCode && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Invite Code</span>
+                    <span className="text-purple-400 font-mono">{group.inviteCode}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="text-gray-500">Prize Pool (90%)</p>
-              <p className="text-purple-400 font-bold">{(group.pricePerSquare * squaresFilled * 0.9).toFixed(2)} {group.currency}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Squares Left</p>
-              <p className="text-white font-bold">{100 - squaresFilled}</p>
-            </div>
+
+            {/* Admin Panel */}
+            {isCreator && (
+              <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+                <button
+                  onClick={() => setShowAdminPanel(!showAdminPanel)}
+                  className="w-full flex items-center justify-between text-white font-semibold"
+                >
+                  <span>🔧 Admin Panel</span>
+                  <span>{showAdminPanel ? '▼' : '▶'}</span>
+                </button>
+                
+                {showAdminPanel && (
+                  <div className="mt-4 space-y-4">
+                    {group.status === 'open' && (
+                      <div>
+                        <p className="text-gray-400 text-sm mb-2">
+                          Lock the group to assign numbers and start the game.
+                        </p>
+                        <button
+                          onClick={handleLockGroup}
+                          className="w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition"
+                        >
+                          🔒 Lock & Assign Numbers
+                        </button>
+                      </div>
+                    )}
+                    
+                    {(group.status === 'locked' || group.status === 'live') && (
+                      <div>
+                        <p className="text-gray-400 text-sm mb-2">Record quarter scores:</p>
+                        <div className="space-y-2">
+                          {[1, 2, 3, 4].map(q => {
+                            const existing = group.quarterResults.find(r => r.quarter === q);
+                            return (
+                              <div key={q} className="flex items-center gap-2">
+                                <span className="text-white w-8">Q{q}</span>
+                                {existing ? (
+                                  <span className="text-green-400 text-sm">
+                                    ✓ {existing.afcScore}-{existing.nfcScore}
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      const afc = prompt(`${SUPER_BOWL.teams.afc.abbreviation} score Q${q}:`, '0');
+                                      const nfc = prompt(`${SUPER_BOWL.teams.nfc.abbreviation} score Q${q}:`, '0');
+                                      if (afc !== null && nfc !== null) {
+                                        handleRecordScore(q as 1|2|3|4, parseInt(afc), parseInt(nfc));
+                                      }
+                                    }}
+                                    className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-sm text-white transition"
+                                  >
+                                    Enter Score
+                                  </button>
+                                )}
+                                {existing && !existing.paidOut && (
+                                  <button
+                                    onClick={() => handlePayout(q as 1|2|3|4)}
+                                    className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm text-white transition ml-auto"
+                                  >
+                                    Pay Out
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

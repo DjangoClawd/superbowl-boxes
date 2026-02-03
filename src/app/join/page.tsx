@@ -5,34 +5,48 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-interface Group {
-  id: string;
-  name: string;
-  team1: string;
-  team2: string;
-  pricePerSquare: number;
-  currency: string;
-  creator: string;
-  createdAt: number;
-  squares: (string | null)[];
-}
+import { Group, SUPER_BOWL } from '@/lib/types';
+import { getPublicGroups, getGroupByInviteCode } from '@/lib/store';
 
 export default function JoinPage() {
   const { connected } = useWallet();
   const router = useRouter();
-  const [groupCode, setGroupCode] = useState('');
-  const [groups, setGroups] = useState<Group[]>([]);
+  
+  const [tab, setTab] = useState<'public' | 'private'>('public');
+  const [publicGroups, setPublicGroups] = useState<Group[]>([]);
+  const [inviteCode, setInviteCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem('sbboxes_groups') || '{}');
-    setGroups(Object.values(stored));
+    setPublicGroups(getPublicGroups());
+    setLoading(false);
   }, []);
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoinPrivate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (groupCode.trim()) {
-      router.push(`/group/${groupCode.trim()}`);
+    setError(null);
+    
+    const group = getGroupByInviteCode(inviteCode.trim());
+    if (group) {
+      router.push(`/group/${group.id}`);
+    } else {
+      setError('Invalid invite code. Please check and try again.');
+    }
+  };
+
+  const getStatusBadge = (status: Group['status']) => {
+    switch (status) {
+      case 'open':
+        return <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">Open</span>;
+      case 'full':
+        return <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">Full</span>;
+      case 'locked':
+        return <span className="px-2 py-1 text-xs rounded-full bg-blue-500/20 text-blue-400">Locked</span>;
+      case 'live':
+        return <span className="px-2 py-1 text-xs rounded-full bg-red-500/20 text-red-400 animate-pulse">🔴 Live</span>;
+      case 'completed':
+        return <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400">Completed</span>;
     }
   };
 
@@ -49,71 +63,174 @@ export default function JoinPage() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold text-white mb-2">Join Group</h1>
-        <p className="text-gray-400 mb-8">Enter a group code or browse available groups</p>
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold text-white mb-2">Join a Group</h1>
+        <p className="text-gray-400 mb-8">
+          {SUPER_BOWL.name} • {SUPER_BOWL.teams.afc.shortName} vs {SUPER_BOWL.teams.nfc.shortName}
+        </p>
 
-        {/* Join by code */}
-        <form onSubmit={handleJoin} className="mb-12">
-          <label className="block text-white font-medium mb-2">Group Code</label>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={groupCode}
-              onChange={(e) => setGroupCode(e.target.value)}
-              placeholder="Enter group code..."
-              className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-            <button
-              type="submit"
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition"
-            >
-              Join
-            </button>
-          </div>
-        </form>
+        {/* Tabs */}
+        <div className="flex gap-2 mb-8">
+          <button
+            onClick={() => setTab('public')}
+            className={`px-6 py-3 rounded-xl font-medium transition ${
+              tab === 'public'
+                ? 'bg-purple-600 text-white'
+                : 'bg-white/10 text-gray-400 hover:bg-white/20'
+            }`}
+          >
+            🌐 Public Lobbies
+          </button>
+          <button
+            onClick={() => setTab('private')}
+            className={`px-6 py-3 rounded-xl font-medium transition ${
+              tab === 'private'
+                ? 'bg-purple-600 text-white'
+                : 'bg-white/10 text-gray-400 hover:bg-white/20'
+            }`}
+          >
+            🔒 Join Private
+          </button>
+        </div>
 
-        {/* Available groups */}
-        <div>
-          <h2 className="text-xl font-bold text-white mb-4">Available Groups</h2>
-          {groups.length === 0 ? (
-            <div className="p-8 rounded-xl bg-white/5 border border-white/10 text-center">
-              <p className="text-gray-400">No groups yet.</p>
-              {connected && (
-                <Link href="/create" className="text-purple-400 hover:underline mt-2 inline-block">
-                  Create the first one!
+        {/* Public Lobbies */}
+        {tab === 'public' && (
+          <div className="space-y-4">
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-gray-400">Loading groups...</p>
+              </div>
+            ) : publicGroups.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🏈</div>
+                <h2 className="text-xl font-semibold text-white mb-2">No public groups yet</h2>
+                <p className="text-gray-400 mb-6">Be the first to create one!</p>
+                <Link
+                  href="/create"
+                  className="inline-block px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition"
+                >
+                  Create Group
                 </Link>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {groups.map(group => {
-                const filled = group.squares.filter(s => s !== null).length;
+              </div>
+            ) : (
+              publicGroups.map(group => {
+                const filledSquares = group.squares.filter(s => s.owner !== null).length;
+                const totalPool = group.pricePerSquare * 100;
+                
                 return (
                   <Link
                     key={group.id}
                     href={`/group/${group.id}`}
-                    className="block p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition"
+                    className="block p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-white/10 transition"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
                       <div>
-                        <h3 className="text-white font-bold">{group.name}</h3>
+                        <div className="flex items-center gap-3 mb-1">
+                          <h3 className="text-xl font-bold text-white">{group.name}</h3>
+                          {getStatusBadge(group.status)}
+                        </div>
                         <p className="text-gray-400 text-sm">
-                          {group.team1} vs {group.team2}
+                          Created by {group.creatorDisplay}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-purple-400 font-bold">
+                        <div className="text-2xl font-bold text-white">
                           {group.pricePerSquare} {group.currency}
-                        </p>
-                        <p className="text-gray-500 text-sm">{filled}/100 filled</p>
+                        </div>
+                        <div className="text-gray-400 text-sm">per square</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-6 text-sm">
+                      <div>
+                        <span className="text-gray-500">Squares:</span>
+                        <span className="text-white ml-2 font-medium">{filledSquares}/100</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Total Pool:</span>
+                        <span className="text-purple-400 ml-2 font-medium">{totalPool.toFixed(2)} {group.currency}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Numbers:</span>
+                        <span className="text-white ml-2 font-medium capitalize">{group.numberRandomization.replace('-', ' ')}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    <div className="mt-4">
+                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all"
+                          style={{ width: `${filledSquares}%` }}
+                        />
                       </div>
                     </div>
                   </Link>
                 );
-              })}
+              })
+            )}
+          </div>
+        )}
+
+        {/* Private Join */}
+        {tab === 'private' && (
+          <div className="max-w-md mx-auto">
+            <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+              <div className="text-4xl mb-4 text-center">🔐</div>
+              <h2 className="text-xl font-semibold text-white text-center mb-2">
+                Enter Invite Code
+              </h2>
+              <p className="text-gray-400 text-center text-sm mb-6">
+                Got an invite code from a friend? Enter it below to join their private group.
+              </p>
+              
+              {error && (
+                <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+              
+              <form onSubmit={handleJoinPrivate} className="space-y-4">
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder="ABCD12"
+                  maxLength={6}
+                  className="w-full px-4 py-4 rounded-xl bg-white/10 border border-white/20 text-white text-center text-2xl font-mono tracking-widest placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase"
+                />
+                <button
+                  type="submit"
+                  disabled={inviteCode.length < 6}
+                  className="w-full py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition"
+                >
+                  Join Group
+                </button>
+              </form>
             </div>
-          )}
+            
+            {!connected && (
+              <div className="mt-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-center">
+                <p className="text-yellow-400 text-sm mb-3">
+                  Connect your wallet to purchase squares
+                </p>
+                <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-xl" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Create CTA */}
+        <div className="mt-12 text-center">
+          <p className="text-gray-400 mb-4">Want to run your own pool?</p>
+          <Link
+            href="/create"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition"
+          >
+            <span>➕</span>
+            Create Your Own Group
+          </Link>
         </div>
       </div>
     </main>
