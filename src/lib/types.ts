@@ -15,15 +15,17 @@ export const SUPER_BOWL = {
       name: 'New England Patriots',
       shortName: 'Patriots',
       abbreviation: 'NE',
-      color: '#002244',
-      emoji: '🔵',
+      primaryColor: '#002244',  // Navy blue
+      secondaryColor: '#C60C30', // Red
+      emoji: '🔴',
     },
     nfc: {
       name: 'Seattle Seahawks',
       shortName: 'Seahawks', 
       abbreviation: 'SEA',
-      color: '#002244',
-      emoji: '🦅',
+      primaryColor: '#002244',  // College Navy
+      secondaryColor: '#69BE28', // Action Green
+      emoji: '🟢',
     },
   },
 } as const;

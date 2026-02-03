@@ -209,19 +209,25 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
 
         {/* Live Score Banner */}
         {liveScore?.isLive && (
-          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30">
-            <div className="flex flex-wrap items-center justify-center gap-6">
+          <div className="mb-6 p-5 rounded-xl bg-gradient-to-r from-[#002244]/40 via-slate-800/40 to-[#002244]/40 border border-white/10 shadow-lg">
+            <div className="flex items-center justify-center mb-2">
+              <span className="px-3 py-1 bg-red-500/20 rounded-full text-red-400 text-xs font-bold animate-pulse">
+                🔴 LIVE
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-8">
               <div className="text-center">
-                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.nfc.name}</div>
-                <div className="text-4xl font-bold text-white">{liveScore.nfc}</div>
+                <div className="text-sm text-[#69BE28] font-medium mb-1">{SUPER_BOWL.teams.nfc.emoji} {SUPER_BOWL.teams.nfc.shortName}</div>
+                <div className="text-5xl font-bold text-white">{liveScore.nfc}</div>
+              </div>
+              <div className="text-center px-4">
+                <div className="text-xs text-gray-500 mb-1">Quarter</div>
+                <div className="text-3xl font-bold text-white">Q{liveScore.quarter}</div>
+                <div className="text-lg font-mono text-gray-400">{liveScore.timeRemaining}</div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Q{liveScore.quarter}</div>
-                <div className="text-2xl font-mono text-white">{liveScore.timeRemaining}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.afc.name}</div>
-                <div className="text-4xl font-bold text-white">{liveScore.afc}</div>
+                <div className="text-sm text-[#C60C30] font-medium mb-1">{SUPER_BOWL.teams.afc.shortName} {SUPER_BOWL.teams.afc.emoji}</div>
+                <div className="text-5xl font-bold text-white">{liveScore.afc}</div>
               </div>
             </div>
           </div>
@@ -239,19 +245,28 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
           {/* Main Grid Column */}
           <div className="lg:col-span-2">
             {/* Grid */}
-            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 overflow-x-auto mb-6">
-              <div className="min-w-[520px]">
-                {/* Team headers */}
-                <div className="text-center text-sm font-medium text-gray-400 mb-2">
-                  {SUPER_BOWL.teams.afc.shortName} →
+            <div className="bg-slate-900/50 rounded-2xl p-4 border border-white/10 overflow-x-auto mb-6">
+              <div className="min-w-[540px]">
+                {/* Patriots header (columns) */}
+                <div className="flex items-center justify-center gap-2 mb-3 ml-12">
+                  <div className="flex-1 h-1 rounded-full bg-gradient-to-r from-transparent via-[#C60C30] to-[#002244]"></div>
+                  <span className="text-sm font-bold text-white px-3 py-1 rounded-full bg-[#002244] border border-[#C60C30]/50">
+                    {SUPER_BOWL.teams.afc.emoji} {SUPER_BOWL.teams.afc.shortName}
+                  </span>
+                  <div className="flex-1 h-1 rounded-full bg-gradient-to-r from-[#002244] via-[#C60C30] to-transparent"></div>
                 </div>
                 
-                {/* Column numbers */}
+                {/* Column numbers - Patriots colors */}
                 <div className="flex mb-1">
                   <div className="w-12 h-10"></div>
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
-                    <div key={i} className="w-11 h-10 flex items-center justify-center">
-                      <span className={`text-lg font-bold ${currentNumbers ? 'text-purple-400' : 'text-gray-600'}`}>
+                    <div 
+                      key={i} 
+                      className={`w-11 h-10 flex items-center justify-center rounded-t-lg ${
+                        currentNumbers ? 'bg-[#002244]/80' : 'bg-white/5'
+                      }`}
+                    >
+                      <span className={`text-lg font-bold ${currentNumbers ? 'text-[#C60C30]' : 'text-gray-600'}`}>
                         {currentNumbers ? currentNumbers.colNumbers[i] : '?'}
                       </span>
                     </div>
@@ -260,20 +275,24 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                 
                 {/* Grid rows */}
                 <div className="flex">
-                  {/* Team 1 label */}
-                  <div className="flex flex-col justify-center items-center w-12">
-                    <span className="text-sm font-medium text-gray-400 writing-mode-vertical transform -rotate-180" style={{ writingMode: 'vertical-rl' }}>
-                      ← {SUPER_BOWL.teams.nfc.shortName}
-                    </span>
+                  {/* Seahawks label (rows) */}
+                  <div className="flex flex-col items-center justify-center w-12 mr-0">
+                    <div className="flex items-center gap-1 transform -rotate-90 whitespace-nowrap">
+                      <span className="text-sm font-bold text-white px-2 py-1 rounded-full bg-[#002244] border border-[#69BE28]/50">
+                        {SUPER_BOWL.teams.nfc.emoji} {SUPER_BOWL.teams.nfc.shortName}
+                      </span>
+                    </div>
                   </div>
                   
-                  {/* Grid */}
+                  {/* Grid with row numbers */}
                   <div>
                     {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(row => (
                       <div key={row} className="flex">
-                        {/* Row number */}
-                        <div className="w-11 h-11 flex items-center justify-center">
-                          <span className={`text-lg font-bold ${currentNumbers ? 'text-purple-400' : 'text-gray-600'}`}>
+                        {/* Row number - Seahawks colors */}
+                        <div className={`w-11 h-11 flex items-center justify-center rounded-l-lg ${
+                          currentNumbers ? 'bg-[#002244]/80' : 'bg-white/5'
+                        }`}>
+                          <span className={`text-lg font-bold ${currentNumbers ? 'text-[#69BE28]' : 'text-gray-600'}`}>
                             {currentNumbers ? currentNumbers.rowNumbers[row] : '?'}
                           </span>
                         </div>
@@ -293,15 +312,15 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                               disabled={!!square.owner || group.status !== 'open'}
                               className={`w-11 h-11 border border-white/10 text-xs font-medium transition-all flex items-center justify-center
                                 ${isWinner 
-                                  ? 'bg-yellow-500 text-black ring-2 ring-yellow-300' 
+                                  ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black ring-2 ring-yellow-300 animate-pulse' 
                                   : square.owner 
                                     ? isOwn 
-                                      ? 'bg-purple-600 text-white cursor-default' 
+                                      ? 'bg-gradient-to-br from-purple-500 to-purple-700 text-white cursor-default shadow-lg shadow-purple-500/20' 
                                       : 'bg-white/10 text-gray-400 cursor-default'
                                     : isSelected
-                                      ? 'bg-green-600 text-white'
+                                      ? 'bg-gradient-to-br from-green-500 to-green-700 text-white shadow-lg shadow-green-500/20'
                                       : group.status === 'open'
-                                        ? 'bg-white/5 hover:bg-white/10 text-gray-500 cursor-pointer'
+                                        ? 'bg-white/5 hover:bg-white/15 hover:border-white/30 text-gray-500 cursor-pointer'
                                         : 'bg-white/5 text-gray-600 cursor-default'
                                 }
                               `}
@@ -320,24 +339,32 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
             {/* Legend */}
             <div className="flex flex-wrap gap-4 mb-6 text-sm">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-white/5 border border-white/10 rounded"></div>
+                <div className="w-4 h-4 bg-white/5 border border-white/20 rounded"></div>
                 <span className="text-gray-400">Available</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-600 rounded"></div>
+                <div className="w-4 h-4 bg-gradient-to-br from-green-500 to-green-700 rounded"></div>
                 <span className="text-gray-400">Selected</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-purple-600 rounded"></div>
+                <div className="w-4 h-4 bg-gradient-to-br from-purple-500 to-purple-700 rounded"></div>
                 <span className="text-gray-400">Your squares</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-white/10 rounded"></div>
+                <div className="w-4 h-4 bg-white/15 rounded"></div>
                 <span className="text-gray-400">Taken</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                <div className="w-4 h-4 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded animate-pulse"></div>
                 <span className="text-gray-400">Winner</span>
+              </div>
+              <div className="flex items-center gap-2 border-l border-white/10 pl-4">
+                <div className="w-4 h-4 bg-[#69BE28] rounded"></div>
+                <span className="text-gray-400">{SUPER_BOWL.teams.nfc.shortName}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-[#C60C30] rounded"></div>
+                <span className="text-gray-400">{SUPER_BOWL.teams.afc.shortName}</span>
               </div>
             </div>
 

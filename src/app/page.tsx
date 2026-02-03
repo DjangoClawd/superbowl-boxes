@@ -42,16 +42,16 @@ export default function Home() {
           </div>
           
           {/* Teams */}
-          <div className="flex items-center justify-center gap-6 mb-8">
-            <div className="text-center">
-              <div className="text-5xl mb-2">🦅</div>
-              <div className="text-2xl font-bold text-white">{SUPER_BOWL.teams.nfc.shortName}</div>
+          <div className="flex items-center justify-center gap-8 mb-8">
+            <div className="text-center p-4 rounded-2xl bg-gradient-to-br from-[#002244]/50 to-[#69BE28]/20 border border-[#69BE28]/30">
+              <div className="text-5xl mb-2">{SUPER_BOWL.teams.nfc.emoji}</div>
+              <div className="text-2xl font-bold text-[#69BE28]">{SUPER_BOWL.teams.nfc.shortName}</div>
               <div className="text-sm text-gray-400">NFC Champions</div>
             </div>
             <div className="text-4xl text-gray-500 font-light">vs</div>
-            <div className="text-center">
-              <div className="text-5xl mb-2">🔵</div>
-              <div className="text-2xl font-bold text-white">{SUPER_BOWL.teams.afc.shortName}</div>
+            <div className="text-center p-4 rounded-2xl bg-gradient-to-br from-[#002244]/50 to-[#C60C30]/20 border border-[#C60C30]/30">
+              <div className="text-5xl mb-2">{SUPER_BOWL.teams.afc.emoji}</div>
+              <div className="text-2xl font-bold text-[#C60C30]">{SUPER_BOWL.teams.afc.shortName}</div>
               <div className="text-sm text-gray-400">AFC Champions</div>
             </div>
           </div>
