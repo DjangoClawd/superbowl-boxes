@@ -66,7 +66,7 @@ export default function JoinPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-white mb-2">Join a Group</h1>
         <p className="text-gray-400 mb-8">
-          {SUPER_BOWL.name} • {SUPER_BOWL.teams.afc.shortName} vs {SUPER_BOWL.teams.nfc.shortName}
+          {SUPER_BOWL.name} • {SUPER_BOWL.teams.nfc.shortName} vs {SUPER_BOWL.teams.afc.shortName}
         </p>
 
         {/* Tabs */}
@@ -116,7 +116,7 @@ export default function JoinPage() {
             ) : (
               publicGroups.map(group => {
                 const filledSquares = group.squares.filter(s => s.owner !== null).length;
-                const totalPool = group.pricePerSquare * 100;
+                const totalPool = filledSquares * group.pricePerSquare;
                 
                 return (
                   <Link
@@ -132,6 +132,9 @@ export default function JoinPage() {
                         </div>
                         <p className="text-gray-400 text-sm">
                           Created by {group.creatorDisplay}
+                          {group.payouts.creatorFee > 0 && (
+                            <span className="text-green-400 ml-2">• {group.payouts.creatorFee}% creator fee</span>
+                          )}
                         </p>
                       </div>
                       <div className="text-right">
@@ -148,7 +151,7 @@ export default function JoinPage() {
                         <span className="text-white ml-2 font-medium">{filledSquares}/100</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Total Pool:</span>
+                        <span className="text-gray-500">Pool:</span>
                         <span className="text-purple-400 ml-2 font-medium">{totalPool.toFixed(2)} {group.currency}</span>
                       </div>
                       <div>

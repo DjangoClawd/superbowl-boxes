@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import Link from 'next/link';
-import { SUPER_BOWL } from '@/lib/types';
+import { SUPER_BOWL, PLATFORM_FEE_PERCENT } from '@/lib/types';
 import { getGameCountdown, formatCountdown } from '@/lib/scores';
 
 export default function Home() {
@@ -34,16 +34,25 @@ export default function Home() {
       {/* Hero */}
       <section className="pt-32 pb-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
+          {/* Super Bowl Badge */}
+          <div className="inline-block px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-full mb-6">
+            <span className="text-yellow-400 font-semibold">{SUPER_BOWL.name}</span>
+            <span className="text-gray-400 mx-2">•</span>
+            <span className="text-gray-300">{SUPER_BOWL.venue}</span>
+          </div>
+          
           {/* Teams */}
-          <div className="flex items-center justify-center gap-4 mb-8">
+          <div className="flex items-center justify-center gap-6 mb-8">
             <div className="text-center">
-              <div className="text-4xl mb-2">🏈</div>
-              <div className="text-xl font-bold text-white">{SUPER_BOWL.teams.afc.shortName}</div>
+              <div className="text-5xl mb-2">🦅</div>
+              <div className="text-2xl font-bold text-white">{SUPER_BOWL.teams.nfc.shortName}</div>
+              <div className="text-sm text-gray-400">NFC Champions</div>
             </div>
-            <div className="text-3xl text-gray-500">vs</div>
+            <div className="text-4xl text-gray-500 font-light">vs</div>
             <div className="text-center">
-              <div className="text-4xl mb-2">🦅</div>
-              <div className="text-xl font-bold text-white">{SUPER_BOWL.teams.nfc.shortName}</div>
+              <div className="text-5xl mb-2">🔵</div>
+              <div className="text-2xl font-bold text-white">{SUPER_BOWL.teams.afc.shortName}</div>
+              <div className="text-sm text-gray-400">AFC Champions</div>
             </div>
           </div>
           
@@ -65,6 +74,7 @@ export default function Home() {
             <div className="inline-block px-6 py-3 rounded-xl bg-white/10 mb-8">
               <p className="text-sm text-gray-400 mb-1">Kickoff in</p>
               <p className="text-2xl font-bold text-white">{formatCountdown(countdown)}</p>
+              <p className="text-xs text-gray-500 mt-1">February 8, 2026 • 6:30 PM ET</p>
             </div>
           )}
           
@@ -147,53 +157,69 @@ export default function Home() {
             </div>
             
             <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30">
-              <div className="text-3xl mb-4">⚙️</div>
-              <h3 className="text-xl font-semibold text-white mb-2">Custom Payouts</h3>
-              <p className="text-gray-400">Set your own payout percentages for each quarter</p>
+              <div className="text-3xl mb-4">💵</div>
+              <h3 className="text-xl font-semibold text-white mb-2">Creator Earnings</h3>
+              <p className="text-gray-400">Earn up to 15% from groups you create — set your own fee!</p>
             </div>
             
             <div className="p-6 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30">
-              <div className="text-3xl mb-4">🎁</div>
-              <h3 className="text-xl font-semibold text-white mb-2">Referral Program</h3>
-              <p className="text-gray-400">Earn 1% of every square purchased by your referrals</p>
+              <div className="text-3xl mb-4">⚙️</div>
+              <h3 className="text-xl font-semibold text-white mb-2">Custom Prizes</h3>
+              <p className="text-gray-400">Set your own payout distribution for each quarter</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Payout Structure */}
+      {/* Fee Structure */}
       <section className="py-20 px-4 bg-white/5">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-white text-center mb-12">Default Payout Structure</h2>
+          <h2 className="text-3xl font-bold text-white text-center mb-12">Transparent Fees</h2>
           
           <div className="grid md:grid-cols-2 gap-8">
             <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
-              <h3 className="text-xl font-semibold text-white mb-4">💵 Prize Pool</h3>
-              <ul className="space-y-3">
-                {[
-                  { label: 'Q1 Winner', value: '20%' },
-                  { label: 'Q2 (Halftime) Winner', value: '20%' },
-                  { label: 'Q3 Winner', value: '20%' },
-                  { label: 'Q4 (Final) Winner', value: '30%' },
-                  { label: 'House Fee', value: '10%' },
-                ].map((item, i) => (
-                  <li key={i} className="flex justify-between items-center">
-                    <span className="text-gray-400">{item.label}</span>
-                    <span className="text-white font-bold">{item.value}</span>
-                  </li>
-                ))}
+              <h3 className="text-xl font-semibold text-white mb-4">💸 Fee Structure</h3>
+              <ul className="space-y-4">
+                <li className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                  <div>
+                    <span className="text-white font-medium">Platform Fee</span>
+                    <p className="text-gray-500 text-sm">Powers the platform</p>
+                  </div>
+                  <span className="text-gray-400 font-bold">{PLATFORM_FEE_PERCENT}%</span>
+                </li>
+                <li className="flex justify-between items-center p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                  <div>
+                    <span className="text-white font-medium">Creator Fee</span>
+                    <p className="text-gray-500 text-sm">Set by group creator</p>
+                  </div>
+                  <span className="text-green-400 font-bold">0-15%</span>
+                </li>
+                <li className="flex justify-between items-center p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                  <div>
+                    <span className="text-white font-medium">Prize Pool</span>
+                    <p className="text-gray-500 text-sm">Goes to winners</p>
+                  </div>
+                  <span className="text-purple-400 font-bold">Remainder</span>
+                </li>
               </ul>
             </div>
             
             <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
-              <h3 className="text-xl font-semibold text-white mb-4">🎯 Example Pool</h3>
-              <p className="text-gray-400 mb-4">100 squares × 0.1 SOL = 10 SOL pool</p>
-              <ul className="space-y-2 text-sm">
-                <li className="text-gray-300">• Q1 Winner: 2.0 SOL</li>
-                <li className="text-gray-300">• Q2 Winner: 2.0 SOL</li>
-                <li className="text-gray-300">• Q3 Winner: 2.0 SOL</li>
-                <li className="text-gray-300">• Q4 Winner: 3.0 SOL</li>
-                <li className="text-gray-500">• House: 1.0 SOL</li>
+              <h3 className="text-xl font-semibold text-white mb-4">🎯 Default Prize Split</h3>
+              <p className="text-gray-400 mb-4 text-sm">Customizable by group creator</p>
+              <ul className="space-y-3">
+                {[
+                  { label: 'Q1 Winner', value: '20%', color: 'text-white' },
+                  { label: 'Halftime Winner', value: '20%', color: 'text-white' },
+                  { label: 'Q3 Winner', value: '20%', color: 'text-white' },
+                  { label: 'Final Winner', value: '35%', color: 'text-yellow-400' },
+                  { label: 'Creator', value: '5%', color: 'text-green-400' },
+                ].map((item, i) => (
+                  <li key={i} className="flex justify-between items-center">
+                    <span className="text-gray-400">{item.label}</span>
+                    <span className={`${item.color} font-bold`}>{item.value}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
@@ -204,10 +230,14 @@ export default function Home() {
       <section className="py-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-white mb-4">Ready to Play?</h2>
-          <p className="text-xl text-gray-400 mb-8">
-            {SUPER_BOWL.name} • {SUPER_BOWL.teams.afc.name} vs {SUPER_BOWL.teams.nfc.name}
-            <br />
-            <span className="text-lg">February 9, 2025</span>
+          <p className="text-xl text-gray-400 mb-2">
+            {SUPER_BOWL.name}
+          </p>
+          <p className="text-lg text-gray-300 mb-2">
+            {SUPER_BOWL.teams.nfc.name} vs {SUPER_BOWL.teams.afc.name}
+          </p>
+          <p className="text-gray-500 mb-8">
+            February 8, 2026 • {SUPER_BOWL.venue}, {SUPER_BOWL.city}
           </p>
           
           {connected ? (

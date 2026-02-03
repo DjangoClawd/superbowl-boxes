@@ -9,10 +9,11 @@ import {
   generateNumberAssignment,
   DEFAULT_PAYOUTS,
   shortenWallet,
-  NumberAssignment,
+  SUPER_BOWL,
+  calculatePrizeBreakdown,
 } from './types';
 
-const STORAGE_KEY = 'sbboxes_v2';
+const STORAGE_KEY = 'sbboxes_v3';
 
 // Get all groups
 export function getAllGroups(): Record<string, Group> {
@@ -67,8 +68,8 @@ export function createGroup(input: CreateGroupInput, creatorWallet: string): Gro
   const group: Group = {
     id,
     name: input.name,
-    team1: 'Kansas City Chiefs',
-    team2: 'Philadelphia Eagles',
+    team1: SUPER_BOWL.teams.nfc.name, // Rows = Seahawks
+    team2: SUPER_BOWL.teams.afc.name, // Columns = Patriots
     pricePerSquare: input.pricePerSquare,
     currency: input.currency,
     visibility: input.visibility,
@@ -207,8 +208,8 @@ export function updateQuarterNumbers(groupId: string, quarter: 1 | 2 | 3 | 4): G
 export function recordQuarterResult(
   groupId: string,
   quarter: 1 | 2 | 3 | 4,
-  afcScore: number,
-  nfcScore: number
+  nfcScore: number,
+  afcScore: number
 ): Group | null {
   const groups = getAllGroups();
   const group = groups[groupId];
@@ -221,25 +222,32 @@ export function recordQuarterResult(
   
   if (!numbers) return null;
   
-  const afcDigit = afcScore % 10;
   const nfcDigit = nfcScore % 10;
+  const afcDigit = afcScore % 10;
   
-  const rowIndex = numbers.rowNumbers.indexOf(afcDigit);
-  const colIndex = numbers.colNumbers.indexOf(nfcDigit);
+  const rowIndex = numbers.rowNumbers.indexOf(nfcDigit);
+  const colIndex = numbers.colNumbers.indexOf(afcDigit);
   const winningSquareIndex = rowIndex * 10 + colIndex;
   const winnerWallet = group.squares[winningSquareIndex]?.owner || null;
+  
+  // Calculate prize amount
+  const filledSquares = group.squares.filter(s => s.owner !== null).length;
+  const totalPool = filledSquares * group.pricePerSquare;
+  const breakdown = calculatePrizeBreakdown(totalPool, group.payouts);
+  const prizeAmount = breakdown[quarterKey];
   
   // Check if we already have this quarter
   const existingIndex = group.quarterResults.findIndex(r => r.quarter === quarter);
   
   const result = {
     quarter,
-    afcScore,
     nfcScore,
-    afcDigit,
+    afcScore,
     nfcDigit,
+    afcDigit,
     winningSquareIndex,
     winnerWallet,
+    prizeAmount,
     paidOut: false,
     paidOutAt: null,
     txSignature: null,

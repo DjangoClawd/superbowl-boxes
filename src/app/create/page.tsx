@@ -12,6 +12,8 @@ import {
   LobbyVisibility,
   NumberRandomization,
   SUPER_BOWL,
+  PLATFORM_FEE_PERCENT,
+  calculatePrizeBreakdown,
 } from '@/lib/types';
 import { createGroup } from '@/lib/store';
 import { validatePayouts } from '@/lib/solana';
@@ -39,15 +41,17 @@ export default function CreateGroup() {
     });
   };
 
-  const payoutTotal = Object.values(formData.payouts).reduce((a, b) => a + b, 0);
-  const isPayoutValid = payoutTotal === 100;
+  // Calculate breakdown
+  const totalPool = formData.pricePerSquare * 100;
+  const breakdown = calculatePrizeBreakdown(totalPool, formData.payouts);
+  const validation = validatePayouts(formData.payouts);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!publicKey) return;
     
-    if (!isPayoutValid) {
-      setError('Payout percentages must total 100%');
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid settings');
       return;
     }
     
@@ -77,8 +81,6 @@ export default function CreateGroup() {
     );
   }
 
-  const totalPool = formData.pricePerSquare * 100;
-
   return (
     <main className="min-h-screen pt-24 px-4 pb-12">
       {/* Header */}
@@ -95,7 +97,7 @@ export default function CreateGroup() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold text-white mb-2">Create Group</h1>
         <p className="text-gray-400 mb-8">
-          {SUPER_BOWL.name} • {SUPER_BOWL.teams.afc.shortName} vs {SUPER_BOWL.teams.nfc.shortName}
+          {SUPER_BOWL.name} • {SUPER_BOWL.teams.nfc.shortName} vs {SUPER_BOWL.teams.afc.shortName}
         </p>
 
         {error && (
@@ -116,7 +118,7 @@ export default function CreateGroup() {
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Office Pool 2025"
+                placeholder="e.g., Office Pool 2026"
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
@@ -221,22 +223,49 @@ export default function CreateGroup() {
             </div>
           </section>
 
-          {/* Payout Settings */}
+          {/* Creator Fee */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Payout Structure</h2>
-              <span className={`text-sm font-medium ${isPayoutValid ? 'text-green-400' : 'text-red-400'}`}>
-                {payoutTotal}% / 100%
-              </span>
+            <h2 className="text-xl font-semibold text-white">Your Creator Fee</h2>
+            <p className="text-gray-400 text-sm">
+              Earn from your group! Set your fee (0-15%) that you&apos;ll receive when the pool is distributed.
+            </p>
+            
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="0"
+                max="15"
+                step="1"
+                value={formData.payouts.creatorFee}
+                onChange={(e) => updatePayout('creatorFee', parseInt(e.target.value))}
+                className="flex-1 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-green-500"
+              />
+              <div className="w-20 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-center">
+                <span className="text-green-400 font-bold">{formData.payouts.creatorFee}%</span>
+              </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Your earnings (if 100 squares sold):</span>
+                <span className="text-green-400 font-bold">{breakdown.creatorFee.toFixed(2)} {formData.currency}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Prize Distribution */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold text-white">Prize Distribution</h2>
+            <p className="text-gray-400 text-sm">
+              Set how the prize pool is split between quarters. Values are relative (will be normalized).
+            </p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { key: 'q1', label: 'Q1' },
-                { key: 'q2', label: 'Q2 (Half)' },
+                { key: 'q2', label: 'Halftime' },
                 { key: 'q3', label: 'Q3' },
-                { key: 'q4', label: 'Q4 (Final)' },
-                { key: 'house', label: 'House Fee' },
+                { key: 'q4', label: 'Final' },
               ].map(item => (
                 <div key={item.key}>
                   <label className="block text-gray-400 text-sm mb-1">{item.label}</label>
@@ -257,40 +286,62 @@ export default function CreateGroup() {
 
             <button
               type="button"
-              onClick={() => setFormData({ ...formData, payouts: { ...DEFAULT_PAYOUTS } })}
+              onClick={() => setFormData({ 
+                ...formData, 
+                payouts: { ...DEFAULT_PAYOUTS, creatorFee: formData.payouts.creatorFee } 
+              })}
               className="text-purple-400 text-sm hover:underline"
             >
-              Reset to defaults (20/20/20/30/10)
+              Reset to defaults (20/20/20/35)
             </button>
           </section>
 
-          {/* Summary */}
+          {/* Fee Summary */}
           <div className="p-6 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30">
-            <h3 className="text-white font-semibold mb-4">📊 Pool Summary</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
+            <h3 className="text-white font-semibold mb-4">💰 Fee Breakdown (100 squares)</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-400">Total Pool:</span>
-                <span className="text-white font-bold ml-2">{totalPool.toFixed(2)} {formData.currency}</span>
+                <span className="text-white font-bold">{totalPool.toFixed(2)} {formData.currency}</span>
               </div>
-              <div>
-                <span className="text-gray-400">Prize Pool:</span>
-                <span className="text-purple-400 font-bold ml-2">{(totalPool * (100 - formData.payouts.house) / 100).toFixed(2)} {formData.currency}</span>
+              
+              <hr className="border-white/10" />
+              
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Platform Fee ({PLATFORM_FEE_PERCENT}%):</span>
+                <span className="text-gray-400">-{breakdown.platformFee.toFixed(2)} {formData.currency}</span>
               </div>
-              <div>
-                <span className="text-gray-400">Q1 Winner:</span>
-                <span className="text-white ml-2">{(totalPool * formData.payouts.q1 / 100).toFixed(2)} {formData.currency}</span>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Your Fee ({formData.payouts.creatorFee}%):</span>
+                <span className="text-green-400 font-medium">+{breakdown.creatorFee.toFixed(2)} {formData.currency}</span>
               </div>
-              <div>
-                <span className="text-gray-400">Q2 Winner:</span>
-                <span className="text-white ml-2">{(totalPool * formData.payouts.q2 / 100).toFixed(2)} {formData.currency}</span>
+              
+              <hr className="border-white/10" />
+              
+              <div className="flex justify-between items-center">
+                <span className="text-white font-medium">Prize Pool:</span>
+                <span className="text-purple-400 font-bold">{breakdown.prizePool.toFixed(2)} {formData.currency}</span>
               </div>
-              <div>
-                <span className="text-gray-400">Q3 Winner:</span>
-                <span className="text-white ml-2">{(totalPool * formData.payouts.q3 / 100).toFixed(2)} {formData.currency}</span>
-              </div>
-              <div>
-                <span className="text-gray-400">Q4 Winner:</span>
-                <span className="text-white ml-2">{(totalPool * formData.payouts.q4 / 100).toFixed(2)} {formData.currency}</span>
+              
+              <div className="grid grid-cols-4 gap-2 pt-2">
+                <div className="text-center p-2 bg-white/5 rounded">
+                  <div className="text-xs text-gray-500">Q1</div>
+                  <div className="text-white font-medium">{breakdown.q1.toFixed(2)}</div>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded">
+                  <div className="text-xs text-gray-500">Half</div>
+                  <div className="text-white font-medium">{breakdown.q2.toFixed(2)}</div>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded">
+                  <div className="text-xs text-gray-500">Q3</div>
+                  <div className="text-white font-medium">{breakdown.q3.toFixed(2)}</div>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded">
+                  <div className="text-xs text-gray-500">Final</div>
+                  <div className="text-white font-medium">{breakdown.q4.toFixed(2)}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -298,7 +349,7 @@ export default function CreateGroup() {
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading || !isPayoutValid}
+            disabled={loading || !validation.valid}
             className="w-full py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-lg transition"
           >
             {loading ? 'Creating...' : 'Create Group'}

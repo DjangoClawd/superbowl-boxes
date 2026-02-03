@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import Link from 'next/link';
@@ -8,6 +8,7 @@ import {
   Group, 
   GameScore, 
   SUPER_BOWL,
+  PLATFORM_FEE_PERCENT,
   QuarterResult,
   shortenWallet,
 } from '@/lib/types';
@@ -103,8 +104,8 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
-  const handleRecordScore = (quarter: 1 | 2 | 3 | 4, afcScore: number, nfcScore: number) => {
-    const updatedGroup = recordQuarterResult(id, quarter, afcScore, nfcScore);
+  const handleRecordScore = (quarter: 1 | 2 | 3 | 4, nfcScore: number, afcScore: number) => {
+    const updatedGroup = recordQuarterResult(id, quarter, nfcScore, afcScore);
     if (updatedGroup) {
       setGroup(updatedGroup);
     }
@@ -149,8 +150,8 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   const getWinningSquareIndex = (result: QuarterResult) => {
     const numbers = group.numbers[`q${result.quarter}` as 'q1' | 'q2' | 'q3' | 'q4'];
     if (!numbers) return null;
-    const rowIndex = numbers.rowNumbers.indexOf(result.afcDigit);
-    const colIndex = numbers.colNumbers.indexOf(result.nfcDigit);
+    const rowIndex = numbers.rowNumbers.indexOf(result.nfcDigit);
+    const colIndex = numbers.colNumbers.indexOf(result.afcDigit);
     return rowIndex * 10 + colIndex;
   };
 
@@ -168,7 +169,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-red-500/20 rounded-lg">
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 <span className="text-white font-bold">
-                  {SUPER_BOWL.teams.afc.abbreviation} {liveScore.afc} - {liveScore.nfc} {SUPER_BOWL.teams.nfc.abbreviation}
+                  {SUPER_BOWL.teams.nfc.abbreviation} {liveScore.nfc} - {liveScore.afc} {SUPER_BOWL.teams.afc.abbreviation}
                 </span>
                 <span className="text-gray-400 text-sm">Q{liveScore.quarter} {liveScore.timeRemaining}</span>
               </div>
@@ -211,16 +212,16 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
           <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30">
             <div className="flex flex-wrap items-center justify-center gap-6">
               <div className="text-center">
-                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.afc.name}</div>
-                <div className="text-4xl font-bold text-white">{liveScore.afc}</div>
+                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.nfc.name}</div>
+                <div className="text-4xl font-bold text-white">{liveScore.nfc}</div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-gray-500 mb-1">Q{liveScore.quarter}</div>
                 <div className="text-2xl font-mono text-white">{liveScore.timeRemaining}</div>
               </div>
               <div className="text-center">
-                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.nfc.name}</div>
-                <div className="text-4xl font-bold text-white">{liveScore.nfc}</div>
+                <div className="text-sm text-gray-400">{SUPER_BOWL.teams.afc.name}</div>
+                <div className="text-4xl font-bold text-white">{liveScore.afc}</div>
               </div>
             </div>
           </div>
@@ -240,9 +241,9 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
             {/* Grid */}
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 overflow-x-auto mb-6">
               <div className="min-w-[520px]">
-                {/* Team 2 header */}
+                {/* Team headers */}
                 <div className="text-center text-sm font-medium text-gray-400 mb-2">
-                  {group.team2} →
+                  {SUPER_BOWL.teams.afc.shortName} →
                 </div>
                 
                 {/* Column numbers */}
@@ -262,7 +263,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                   {/* Team 1 label */}
                   <div className="flex flex-col justify-center items-center w-12">
                     <span className="text-sm font-medium text-gray-400 writing-mode-vertical transform -rotate-180" style={{ writingMode: 'vertical-rl' }}>
-                      ← {group.team1}
+                      ← {SUPER_BOWL.teams.nfc.shortName}
                     </span>
                   </div>
                   
@@ -389,19 +390,20 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                           {result.quarter === 2 ? 'Halftime' : result.quarter === 4 ? 'Final' : `Q${result.quarter}`}
                         </span>
                         <span className="text-gray-400">
-                          {result.afcScore} - {result.nfcScore}
+                          {result.nfcScore} - {result.afcScore}
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-gray-400">
                           Winner: {result.winnerWallet ? shortenWallet(result.winnerWallet) : 'N/A'}
                         </span>
-                        {result.paidOut ? (
-                          <span className="text-green-400">✓ Paid</span>
-                        ) : (
-                          <span className="text-yellow-400">Pending</span>
-                        )}
+                        <span className="text-purple-400">{formatSol(result.prizeAmount)} {group.currency}</span>
                       </div>
+                      {result.paidOut ? (
+                        <span className="text-green-400 text-xs">✓ Paid</span>
+                      ) : (
+                        <span className="text-yellow-400 text-xs">Pending</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -410,33 +412,43 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
 
             {/* Prize Pool */}
             <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-              <h3 className="text-white font-semibold mb-4">💰 Prize Pool</h3>
+              <h3 className="text-white font-semibold mb-4">💰 Pool Breakdown</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Total Pool</span>
+                  <span className="text-gray-400">Total Collected</span>
                   <span className="text-white font-bold">{formatSol(prizeBreakdown.total)} {group.currency}</span>
                 </div>
                 <hr className="border-white/10" />
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Q1 ({group.payouts.q1}%)</span>
-                  <span className="text-white">{formatSol(prizeBreakdown.q1)} {group.currency}</span>
+                  <span className="text-gray-400">Platform ({PLATFORM_FEE_PERCENT}%)</span>
+                  <span className="text-gray-400">-{formatSol(prizeBreakdown.platformFee)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Q2 Halftime ({group.payouts.q2}%)</span>
-                  <span className="text-white">{formatSol(prizeBreakdown.q2)} {group.currency}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Q3 ({group.payouts.q3}%)</span>
-                  <span className="text-white">{formatSol(prizeBreakdown.q3)} {group.currency}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Q4 Final ({group.payouts.q4}%)</span>
-                  <span className="text-white">{formatSol(prizeBreakdown.q4)} {group.currency}</span>
+                  <span className="text-gray-400">Creator ({group.payouts.creatorFee}%)</span>
+                  <span className="text-green-400">+{formatSol(prizeBreakdown.creatorFee)}</span>
                 </div>
                 <hr className="border-white/10" />
-                <div className="flex justify-between">
-                  <span className="text-gray-400">House ({group.payouts.house}%)</span>
-                  <span className="text-gray-400">{formatSol(prizeBreakdown.house)} {group.currency}</span>
+                <div className="flex justify-between font-medium">
+                  <span className="text-white">Prize Pool</span>
+                  <span className="text-purple-400">{formatSol(prizeBreakdown.prizePool)} {group.currency}</span>
+                </div>
+                <div className="pt-2 grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2 bg-white/5 rounded text-center">
+                    <div className="text-gray-500">Q1</div>
+                    <div className="text-white">{formatSol(prizeBreakdown.q1)}</div>
+                  </div>
+                  <div className="p-2 bg-white/5 rounded text-center">
+                    <div className="text-gray-500">Half</div>
+                    <div className="text-white">{formatSol(prizeBreakdown.q2)}</div>
+                  </div>
+                  <div className="p-2 bg-white/5 rounded text-center">
+                    <div className="text-gray-500">Q3</div>
+                    <div className="text-white">{formatSol(prizeBreakdown.q3)}</div>
+                  </div>
+                  <div className="p-2 bg-white/5 rounded text-center">
+                    <div className="text-gray-500">Final</div>
+                    <div className="text-white">{formatSol(prizeBreakdown.q4)}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -488,6 +500,14 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                 
                 {showAdminPanel && (
                   <div className="mt-4 space-y-4">
+                    {/* Creator Earnings */}
+                    <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                      <div className="text-sm text-gray-400">Your Earnings</div>
+                      <div className="text-xl font-bold text-green-400">
+                        {formatSol(prizeBreakdown.creatorFee)} {group.currency}
+                      </div>
+                    </div>
+                    
                     {group.status === 'open' && (
                       <div>
                         <p className="text-gray-400 text-sm mb-2">
@@ -513,15 +533,15 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                                 <span className="text-white w-8">Q{q}</span>
                                 {existing ? (
                                   <span className="text-green-400 text-sm">
-                                    ✓ {existing.afcScore}-{existing.nfcScore}
+                                    ✓ {existing.nfcScore}-{existing.afcScore}
                                   </span>
                                 ) : (
                                   <button
                                     onClick={() => {
-                                      const afc = prompt(`${SUPER_BOWL.teams.afc.abbreviation} score Q${q}:`, '0');
                                       const nfc = prompt(`${SUPER_BOWL.teams.nfc.abbreviation} score Q${q}:`, '0');
-                                      if (afc !== null && nfc !== null) {
-                                        handleRecordScore(q as 1|2|3|4, parseInt(afc), parseInt(nfc));
+                                      const afc = prompt(`${SUPER_BOWL.teams.afc.abbreviation} score Q${q}:`, '0');
+                                      if (nfc !== null && afc !== null) {
+                                        handleRecordScore(q as 1|2|3|4, parseInt(nfc), parseInt(afc));
                                       }
                                     }}
                                     className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-sm text-white transition"

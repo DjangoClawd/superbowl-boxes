@@ -1,7 +1,7 @@
 'use client';
 
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { Group, PayoutSettings, calculatePayout } from './types';
+import { Group, PLATFORM_FEE_PERCENT, calculatePrizeBreakdown } from './types';
 
 // Solana connection (using public RPC for now)
 const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
@@ -71,53 +71,57 @@ export async function createPayoutTransaction(
   return transaction;
 }
 
-// Calculate prize for a quarter
-export function calculateQuarterPrize(
-  group: Group,
-  quarter: 1 | 2 | 3 | 4
-): number {
-  const filledSquares = group.squares.filter(s => s.owner !== null).length;
-  const totalPool = filledSquares * group.pricePerSquare;
-  return calculatePayout(totalPool, group.payouts, quarter);
-}
-
-// Calculate house fee
-export function calculateHouseFee(group: Group): number {
-  const filledSquares = group.squares.filter(s => s.owner !== null).length;
-  const totalPool = filledSquares * group.pricePerSquare;
-  return (totalPool * group.payouts.house) / 100;
-}
-
-// Get all prize breakdown
+// Get full prize breakdown for a group
 export function getPrizeBreakdown(group: Group): {
   total: number;
+  platformFee: number;
+  creatorFee: number;
+  prizePool: number;
   q1: number;
   q2: number;
   q3: number;
   q4: number;
-  house: number;
 } {
   const filledSquares = group.squares.filter(s => s.owner !== null).length;
   const total = filledSquares * group.pricePerSquare;
   
+  const breakdown = calculatePrizeBreakdown(total, group.payouts);
+  
   return {
     total,
-    q1: calculatePayout(total, group.payouts, 1),
-    q2: calculatePayout(total, group.payouts, 2),
-    q3: calculatePayout(total, group.payouts, 3),
-    q4: calculatePayout(total, group.payouts, 4),
-    house: (total * group.payouts.house) / 100,
+    ...breakdown,
   };
 }
 
-// Validate payout settings (must sum to 100)
-export function validatePayouts(payouts: PayoutSettings): boolean {
-  const total = payouts.q1 + payouts.q2 + payouts.q3 + payouts.q4 + payouts.house;
-  return total === 100;
+// Validate payout settings
+export function validatePayouts(payouts: { q1: number; q2: number; q3: number; q4: number; creatorFee: number }): {
+  valid: boolean;
+  error?: string;
+} {
+  // Creator fee must be 0-15%
+  if (payouts.creatorFee < 0 || payouts.creatorFee > 15) {
+    return { valid: false, error: 'Creator fee must be between 0% and 15%' };
+  }
+  
+  // Quarter payouts must sum to a reasonable amount
+  const quarterTotal = payouts.q1 + payouts.q2 + payouts.q3 + payouts.q4;
+  if (quarterTotal <= 0) {
+    return { valid: false, error: 'Prize distribution cannot be zero' };
+  }
+  
+  // All values must be non-negative
+  if (payouts.q1 < 0 || payouts.q2 < 0 || payouts.q3 < 0 || payouts.q4 < 0) {
+    return { valid: false, error: 'Prize percentages cannot be negative' };
+  }
+  
+  return { valid: true };
 }
 
 // Default escrow address (would be a PDA in production)
 export const ESCROW_PUBKEY = new PublicKey('11111111111111111111111111111111'); // Placeholder
+
+// Platform fee wallet (where 5% goes)
+export const PLATFORM_WALLET = new PublicKey('11111111111111111111111111111111'); // Placeholder
 
 // Sign and send transaction using wallet adapter
 export async function signAndSendTransaction(
@@ -150,3 +154,6 @@ export async function getSolBalance(pubkey: PublicKey): Promise<number> {
 export function formatSol(amount: number, decimals = 2): string {
   return amount.toFixed(decimals);
 }
+
+// Get platform fee percentage (exported for display)
+export { PLATFORM_FEE_PERCENT };

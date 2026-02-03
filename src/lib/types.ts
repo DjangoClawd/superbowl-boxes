@@ -1,25 +1,35 @@
-// Super Bowl LIX - February 9, 2025
-// Kansas City Chiefs vs Philadelphia Eagles
+// Super Bowl LX - February 8, 2026
+// Seattle Seahawks vs New England Patriots
+// Levi's Stadium, Santa Clara, CA
 
 export const SUPER_BOWL = {
-  year: 2025,
-  name: 'Super Bowl LIX',
-  date: '2025-02-09T18:30:00-05:00', // 6:30 PM ET
+  number: 60,
+  numeral: 'LX',
+  year: 2026,
+  name: 'Super Bowl LX',
+  date: '2026-02-08T15:30:00-08:00', // 3:30 PM PT / 6:30 PM ET
+  venue: "Levi's Stadium",
+  city: 'Santa Clara, CA',
   teams: {
     afc: {
-      name: 'Kansas City Chiefs',
-      shortName: 'Chiefs',
-      abbreviation: 'KC',
-      color: '#E31837',
+      name: 'New England Patriots',
+      shortName: 'Patriots',
+      abbreviation: 'NE',
+      color: '#002244',
+      emoji: '🔵',
     },
     nfc: {
-      name: 'Philadelphia Eagles', 
-      shortName: 'Eagles',
-      abbreviation: 'PHI',
-      color: '#004C54',
+      name: 'Seattle Seahawks',
+      shortName: 'Seahawks', 
+      abbreviation: 'SEA',
+      color: '#002244',
+      emoji: '🦅',
     },
   },
 } as const;
+
+// Platform fee is FIXED - this is what the website takes
+export const PLATFORM_FEE_PERCENT = 5;
 
 export type TeamSide = 'afc' | 'nfc';
 
@@ -33,31 +43,35 @@ export interface Square {
 export type NumberRandomization = 'fixed' | 'per-half' | 'per-quarter';
 export type LobbyVisibility = 'public' | 'private';
 
+// Payout settings - creator configures prize distribution + their cut
 export interface PayoutSettings {
   q1: number; // Percentage (0-100)
   q2: number;
   q3: number;
   q4: number;
-  house: number;
+  creatorFee: number; // Creator's cut (0-15%)
+  // Note: Platform fee (5%) is automatic and not shown here
 }
 
+// Default payouts (before platform fee)
+// Total should be 100% (platform fee comes off the top)
 export const DEFAULT_PAYOUTS: PayoutSettings = {
   q1: 20,
   q2: 20,
   q3: 20,
-  q4: 30,
-  house: 10,
+  q4: 35,
+  creatorFee: 5, // Creator takes 5%, players get prizes from remaining 95%
 };
 
 export interface NumberAssignment {
-  rowNumbers: number[]; // Team 1 (AFC - Chiefs)
-  colNumbers: number[]; // Team 2 (NFC - Eagles)
+  rowNumbers: number[]; // Team 1 (NFC - Seahawks)
+  colNumbers: number[]; // Team 2 (AFC - Patriots)
   assignedAt: number;
 }
 
 export interface GameScore {
-  afc: number; // Chiefs score
-  nfc: number; // Eagles score
+  nfc: number; // Seahawks score
+  afc: number; // Patriots score
   quarter: 0 | 1 | 2 | 3 | 4 | 5; // 0 = not started, 5 = final/OT
   timeRemaining: string;
   isLive: boolean;
@@ -66,12 +80,13 @@ export interface GameScore {
 
 export interface QuarterResult {
   quarter: 1 | 2 | 3 | 4;
-  afcScore: number;
   nfcScore: number;
-  afcDigit: number;
+  afcScore: number;
   nfcDigit: number;
+  afcDigit: number;
   winningSquareIndex: number | null;
   winnerWallet: string | null;
+  prizeAmount: number;
   paidOut: boolean;
   paidOutAt: number | null;
   txSignature: string | null;
@@ -81,9 +96,9 @@ export interface Group {
   id: string;
   name: string;
   
-  // Teams - defaults to Super Bowl teams
-  team1: string; // Row team (AFC)
-  team2: string; // Column team (NFC)
+  // Teams - fixed to Super Bowl teams
+  team1: string; // Row team (NFC - Seahawks)
+  team2: string; // Column team (AFC - Patriots)
   
   // Settings
   pricePerSquare: number;
@@ -163,29 +178,55 @@ export function generateNumberAssignment(): NumberAssignment {
 
 // Find winning square for a score
 export function findWinningSquare(
-  afcScore: number,
   nfcScore: number,
+  afcScore: number,
   numbers: NumberAssignment
 ): number | null {
-  const afcDigit = afcScore % 10;
   const nfcDigit = nfcScore % 10;
+  const afcDigit = afcScore % 10;
   
-  const rowIndex = numbers.rowNumbers.indexOf(afcDigit);
-  const colIndex = numbers.colNumbers.indexOf(nfcDigit);
+  const rowIndex = numbers.rowNumbers.indexOf(nfcDigit);
+  const colIndex = numbers.colNumbers.indexOf(afcDigit);
   
   if (rowIndex === -1 || colIndex === -1) return null;
   
   return rowIndex * 10 + colIndex;
 }
 
-// Calculate payout amount
-export function calculatePayout(
+// Calculate prize pool breakdown
+export function calculatePrizeBreakdown(
   totalPool: number,
-  payouts: PayoutSettings,
-  quarter: 1 | 2 | 3 | 4
-): number {
-  const percentage = payouts[`q${quarter}` as keyof PayoutSettings] as number;
-  return (totalPool * percentage) / 100;
+  payouts: PayoutSettings
+): {
+  platformFee: number;
+  creatorFee: number;
+  prizePool: number;
+  q1: number;
+  q2: number;
+  q3: number;
+  q4: number;
+} {
+  // Platform takes 5% off the top
+  const platformFee = (totalPool * PLATFORM_FEE_PERCENT) / 100;
+  const afterPlatform = totalPool - platformFee;
+  
+  // Creator takes their cut
+  const creatorFee = (afterPlatform * payouts.creatorFee) / 100;
+  const prizePool = afterPlatform - creatorFee;
+  
+  // Distribute prizes according to settings
+  // Normalize the quarter percentages to sum to 100
+  const quarterTotal = payouts.q1 + payouts.q2 + payouts.q3 + payouts.q4;
+  
+  return {
+    platformFee,
+    creatorFee,
+    prizePool,
+    q1: (prizePool * payouts.q1) / quarterTotal,
+    q2: (prizePool * payouts.q2) / quarterTotal,
+    q3: (prizePool * payouts.q3) / quarterTotal,
+    q4: (prizePool * payouts.q4) / quarterTotal,
+  };
 }
 
 // Short wallet display

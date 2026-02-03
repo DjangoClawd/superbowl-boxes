@@ -7,8 +7,8 @@ const ESPN_API = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/sco
 
 // Mock scores for testing
 let mockScore: GameScore = {
-  afc: 0,
   nfc: 0,
+  afc: 0,
   quarter: 0,
   timeRemaining: '15:00',
   isLive: false,
@@ -20,6 +20,13 @@ export function setMockScore(score: Partial<GameScore>): void {
   mockScore = { ...mockScore, ...score, lastUpdated: Date.now() };
   // Broadcast to listeners
   scoreListeners.forEach(listener => listener(mockScore));
+}
+
+// Enable mock mode for testing
+export function enableMockMode(): void {
+  if (typeof window !== 'undefined') {
+    (window as unknown as { MOCK_SCORES: boolean }).MOCK_SCORES = true;
+  }
 }
 
 // Score listeners for real-time updates
@@ -61,13 +68,17 @@ interface ESPNResponse {
 }
 
 function parseESPNResponse(data: ESPNResponse): GameScore | null {
-  // Find Chiefs vs Eagles game
+  // Find Seahawks vs Patriots game (Super Bowl LX)
   const game = data.events?.find(event => {
     const name = event.name?.toLowerCase() || '';
-    return (
-      (name.includes('chiefs') && name.includes('eagles')) ||
-      name.includes('super bowl')
-    );
+    const competitors = event.competitions?.[0]?.competitors || [];
+    const teamAbbrs = competitors.map(c => c.team.abbreviation?.toUpperCase());
+    
+    // Check for our specific matchup
+    const hasSeahawks = teamAbbrs.includes('SEA') || name.includes('seahawks');
+    const hasPatriots = teamAbbrs.includes('NE') || name.includes('patriots');
+    
+    return (hasSeahawks && hasPatriots) || name.includes('super bowl');
   });
   
   if (!game) return null;
@@ -75,17 +86,18 @@ function parseESPNResponse(data: ESPNResponse): GameScore | null {
   const competition = game.competitions?.[0];
   if (!competition) return null;
   
-  let afcScore = 0;
-  let nfcScore = 0;
+  let nfcScore = 0; // Seahawks
+  let afcScore = 0; // Patriots
   
   competition.competitors.forEach(team => {
     const abbr = team.team.abbreviation?.toUpperCase();
+    const displayName = team.team.displayName?.toLowerCase() || '';
     const score = parseInt(team.score) || 0;
     
-    if (abbr === 'KC' || team.team.displayName?.includes('Chiefs')) {
-      afcScore = score;
-    } else if (abbr === 'PHI' || team.team.displayName?.includes('Eagles')) {
+    if (abbr === 'SEA' || displayName.includes('seahawks')) {
       nfcScore = score;
+    } else if (abbr === 'NE' || displayName.includes('patriots')) {
+      afcScore = score;
     }
   });
   
@@ -101,8 +113,8 @@ function parseESPNResponse(data: ESPNResponse): GameScore | null {
   }
   
   return {
-    afc: afcScore,
     nfc: nfcScore,
+    afc: afcScore,
     quarter,
     timeRemaining: game.status?.displayClock || '0:00',
     isLive,
@@ -141,8 +153,8 @@ export async function fetchLiveScore(): Promise<GameScore> {
     
     if (now < gameDate) {
       return {
-        afc: 0,
         nfc: 0,
+        afc: 0,
         quarter: 0,
         timeRemaining: '15:00',
         isLive: false,
