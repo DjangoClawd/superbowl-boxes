@@ -83,6 +83,7 @@ export function createGroup(input: CreateGroupInput, creatorWallet: string): Gro
     numberRandomization: input.numberRandomization,
     gridSize: input.gridSize,
     creator: creatorWallet,
+    creatorName: input.creatorName || 'Anonymous',
     creatorDisplay: shortenWallet(creatorWallet),
     createdAt: Date.now(),
     squares,

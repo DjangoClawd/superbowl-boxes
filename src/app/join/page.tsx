@@ -131,7 +131,7 @@ export default function JoinPage() {
                           {getStatusBadge(group.status)}
                         </div>
                         <p className="text-gray-400 text-sm">
-                          Created by {group.creatorDisplay}
+                          by {group.creatorName || group.creatorDisplay}
                           {group.payouts.creatorFee > 0 && (
                             <span className="text-green-400 ml-2">• {group.payouts.creatorFee}% creator fee</span>
                           )}

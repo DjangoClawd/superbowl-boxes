@@ -508,7 +508,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Creator</span>
-                  <span className="text-white">{group.creatorDisplay}</span>
+                  <span className="text-white">{group.creatorName || group.creatorDisplay}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Visibility</span>

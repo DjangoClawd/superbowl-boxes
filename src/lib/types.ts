@@ -123,7 +123,8 @@ export interface Group {
   
   // Creator info
   creator: string; // Wallet address
-  creatorDisplay: string;
+  creatorName: string; // Display name chosen by creator
+  creatorDisplay: string; // Short wallet address (fallback)
   createdAt: number;
   
   // Squares
@@ -148,6 +149,7 @@ export interface Group {
 
 export interface CreateGroupInput {
   name: string;
+  creatorName: string; // Display name for the creator
   pricePerSquare: number;
   currency: 'SOL' | 'USDC';
   visibility: LobbyVisibility;

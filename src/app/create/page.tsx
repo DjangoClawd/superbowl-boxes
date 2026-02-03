@@ -26,6 +26,7 @@ export default function CreateGroup() {
   
   const [formData, setFormData] = useState<CreateGroupInput>({
     name: '',
+    creatorName: '',
     pricePerSquare: 0.1,
     currency: 'SOL',
     visibility: 'public',
@@ -74,17 +75,7 @@ export default function CreateGroup() {
     }
   };
 
-  if (!connected) {
-    return (
-      <main className="min-h-screen pt-24 px-4">
-        <div className="max-w-md mx-auto text-center">
-          <h1 className="text-3xl font-bold text-white mb-4">Connect Wallet</h1>
-          <p className="text-gray-400 mb-8">Connect your wallet to create a group</p>
-          <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-xl" />
-        </div>
-      </main>
-    );
-  }
+  // Wallet only needed for final submission, not viewing
 
   return (
     <main className="min-h-screen pt-24 px-4 pb-12">
@@ -126,6 +117,19 @@ export default function CreateGroup() {
                 placeholder="e.g., Office Pool 2026"
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-white font-medium mb-2">Your Display Name</label>
+              <input
+                type="text"
+                required
+                value={formData.creatorName}
+                onChange={(e) => setFormData({ ...formData, creatorName: e.target.value })}
+                placeholder="e.g., John, CryptoKing, The Commissioner"
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <p className="text-gray-500 text-sm mt-1">This is how others will see you as the pool creator</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -386,13 +390,22 @@ export default function CreateGroup() {
           </div>
 
           {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading || !validation.valid}
-            className="w-full py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-lg transition"
-          >
-            {loading ? 'Creating...' : 'Create Group'}
-          </button>
+          {connected ? (
+            <button
+              type="submit"
+              disabled={loading || !validation.valid}
+              className="w-full py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-lg transition"
+            >
+              {loading ? 'Creating...' : 'Create Group'}
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-center">
+                <p className="text-yellow-400 text-sm mb-3">Connect your wallet to create this group</p>
+                <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-xl" />
+              </div>
+            </div>
+          )}
         </form>
       </div>
     </main>

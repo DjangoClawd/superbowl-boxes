@@ -4,18 +4,24 @@ import { useEffect, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import Link from 'next/link';
-import { SUPER_BOWL, PLATFORM_FEE_PERCENT } from '@/lib/types';
+import { SUPER_BOWL, PLATFORM_FEE_PERCENT, Group } from '@/lib/types';
 import { getGameCountdown, formatCountdown } from '@/lib/scores';
+import { getPublicGroups } from '@/lib/store';
 
 export default function Home() {
   const { connected } = useWallet();
   const [countdown, setCountdown] = useState(getGameCountdown());
+  const [publicPools, setPublicPools] = useState<Group[]>([]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setCountdown(getGameCountdown());
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    setPublicPools(getPublicGroups().slice(0, 3)); // Show top 3
   }, []);
 
   return (
@@ -111,6 +117,61 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Public Pools */}
+      {publicPools.length > 0 && (
+        <section className="py-12 px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">🔥 Open Pools</h2>
+              <Link href="/join" className="text-purple-400 hover:text-purple-300 text-sm font-medium">
+                View all →
+              </Link>
+            </div>
+            
+            <div className="space-y-4">
+              {publicPools.map(pool => {
+                const filledSquares = pool.squares.filter(s => s.owner !== null).length;
+                const totalSquares = pool.gridSize === '5x5' ? 25 : 100;
+                const fillPercent = (filledSquares / totalSquares) * 100;
+                
+                return (
+                  <Link
+                    key={pool.id}
+                    href={`/group/${pool.id}`}
+                    className="block p-4 sm:p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-white/10 transition"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="text-lg font-bold text-white">{pool.name}</h3>
+                        <p className="text-gray-400 text-sm">by {pool.creatorName || pool.creatorDisplay}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-white">{pool.pricePerSquare} {pool.currency}</div>
+                        <div className="text-gray-500 text-xs">per square</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all"
+                            style={{ width: `${fillPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-400">{filledSquares}/{totalSquares}</span>
+                      {pool.gridSize === '5x5' && (
+                        <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">5×5</span>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Features */}
       <section className="py-20 px-4 bg-white/5">
