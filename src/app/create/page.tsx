@@ -11,9 +11,11 @@ import {
   PayoutSettings,
   LobbyVisibility,
   NumberRandomization,
+  GridSize,
   SUPER_BOWL,
   PLATFORM_FEE_PERCENT,
   calculatePrizeBreakdown,
+  GRID_CONFIGS,
 } from '@/lib/types';
 import { createGroup } from '@/lib/store';
 import { validatePayouts } from '@/lib/solana';
@@ -29,6 +31,7 @@ export default function CreateGroup() {
     visibility: 'public',
     payouts: { ...DEFAULT_PAYOUTS },
     numberRandomization: 'fixed',
+    gridSize: '10x10',
   });
   
   const [loading, setLoading] = useState(false);
@@ -42,7 +45,9 @@ export default function CreateGroup() {
   };
 
   // Calculate breakdown
-  const totalPool = formData.pricePerSquare * 100;
+  const gridConfig = GRID_CONFIGS[formData.gridSize];
+  const totalSquares = gridConfig.totalSquares;
+  const totalPool = formData.pricePerSquare * totalSquares;
   const breakdown = calculatePrizeBreakdown(totalPool, formData.payouts);
   const validation = validatePayouts(formData.payouts);
 
@@ -147,6 +152,40 @@ export default function CreateGroup() {
                   <option value="USDC">USDC</option>
                 </select>
               </div>
+            </div>
+          </section>
+
+          {/* Grid Size */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold text-white">Grid Size</h2>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, gridSize: '10x10' })}
+                className={`p-4 rounded-xl border-2 transition text-left ${
+                  formData.gridSize === '10x10'
+                    ? 'border-purple-500 bg-purple-500/20'
+                    : 'border-white/20 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <div className="text-2xl mb-2">📊</div>
+                <div className="text-white font-medium">10×10 Standard</div>
+                <div className="text-gray-400 text-sm">100 squares • Classic format</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, gridSize: '5x5' })}
+                className={`p-4 rounded-xl border-2 transition text-left ${
+                  formData.gridSize === '5x5'
+                    ? 'border-purple-500 bg-purple-500/20'
+                    : 'border-white/20 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <div className="text-2xl mb-2">🎯</div>
+                <div className="text-white font-medium">5×5 Mini</div>
+                <div className="text-gray-400 text-sm">25 squares • Smaller groups</div>
+              </button>
             </div>
           </section>
 
@@ -298,7 +337,7 @@ export default function CreateGroup() {
 
           {/* Fee Summary */}
           <div className="p-6 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30">
-            <h3 className="text-white font-semibold mb-4">💰 Fee Breakdown (100 squares)</h3>
+            <h3 className="text-white font-semibold mb-4">💰 Fee Breakdown ({totalSquares} squares)</h3>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">

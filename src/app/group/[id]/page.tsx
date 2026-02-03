@@ -11,6 +11,7 @@ import {
   PLATFORM_FEE_PERCENT,
   QuarterResult,
   shortenWallet,
+  GRID_CONFIGS,
 } from '@/lib/types';
 import { 
   getGroup, 
@@ -140,6 +141,11 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
     );
   }
 
+  const gridSize = group.gridSize || '10x10';
+  const gridConfig = GRID_CONFIGS[gridSize];
+  const gridDimension = gridConfig.size;
+  const totalSquares = gridConfig.totalSquares;
+  
   const squaresFilled = group.squares.filter(s => s.owner !== null).length;
   const totalCost = selectedSquares.length * group.pricePerSquare;
   const isCreator = publicKey?.toString() === group.creator;
@@ -192,9 +198,10 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                 <span className="px-2 py-1 text-xs rounded-full bg-red-500/20 text-red-400 animate-pulse">🔴 LIVE</span>
               )}
             </div>
-            <p className="text-gray-400">
-              {group.pricePerSquare} {group.currency} per square • {squaresFilled}/100 filled
-              {group.numberRandomization !== 'fixed' && ` • Numbers: ${group.numberRandomization.replace('-', ' ')}`}
+            <p className="text-gray-400 text-sm sm:text-base">
+              {group.pricePerSquare} {group.currency}/square • {squaresFilled}/{totalSquares} filled
+              {gridSize === '5x5' && ' • 5×5 Mini'}
+              {group.numberRandomization !== 'fixed' && ` • ${group.numberRandomization.replace('-', ' ')}`}
             </p>
           </div>
           <div className="flex gap-2">
@@ -245,92 +252,107 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
           {/* Main Grid Column */}
           <div className="lg:col-span-2">
             {/* Grid */}
-            <div className="bg-slate-900/50 rounded-2xl p-4 border border-white/10 overflow-x-auto mb-6">
-              <div className="min-w-[540px]">
+            <div className="bg-slate-900/50 rounded-2xl p-2 sm:p-4 border border-white/10 overflow-x-auto mb-6">
+              <div className={gridSize === '5x5' ? 'min-w-[320px]' : 'min-w-[400px] sm:min-w-[540px]'}>
                 {/* Patriots header (columns) */}
-                <div className="flex items-center justify-center gap-2 mb-3 ml-12">
+                <div className="flex items-center justify-center gap-2 mb-2 sm:mb-3 ml-10 sm:ml-12">
                   <div className="flex-1 h-1 rounded-full bg-gradient-to-r from-transparent via-[#C60C30] to-[#002244]"></div>
-                  <span className="text-sm font-bold text-white px-3 py-1 rounded-full bg-[#002244] border border-[#C60C30]/50">
-                    {SUPER_BOWL.teams.afc.emoji} {SUPER_BOWL.teams.afc.shortName}
+                  <img src={SUPER_BOWL.teams.afc.logo} alt="" className="w-6 h-6 sm:w-8 sm:h-8" />
+                  <span className="text-xs sm:text-sm font-bold text-white px-2 py-1 rounded-full bg-[#002244] border border-[#C60C30]/50">
+                    {SUPER_BOWL.teams.afc.shortName}
                   </span>
                   <div className="flex-1 h-1 rounded-full bg-gradient-to-r from-[#002244] via-[#C60C30] to-transparent"></div>
                 </div>
                 
                 {/* Column numbers - Patriots colors */}
                 <div className="flex mb-1">
-                  <div className="w-12 h-10"></div>
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
-                    <div 
-                      key={i} 
-                      className={`w-11 h-10 flex items-center justify-center rounded-t-lg ${
-                        currentNumbers ? 'bg-[#002244]/80' : 'bg-white/5'
-                      }`}
-                    >
-                      <span className={`text-lg font-bold ${currentNumbers ? 'text-[#C60C30]' : 'text-gray-600'}`}>
-                        {currentNumbers ? currentNumbers.colNumbers[i] : '?'}
-                      </span>
-                    </div>
-                  ))}
+                  <div className={gridSize === '5x5' ? 'w-10 sm:w-12' : 'w-8 sm:w-12'} />
+                  {Array.from({ length: gridDimension }).map((_, i) => {
+                    // For 5x5, show the pair of numbers
+                    const displayNum = gridSize === '5x5' && currentNumbers
+                      ? `${currentNumbers.colNumbers[i*2]},${currentNumbers.colNumbers[i*2+1]}`
+                      : currentNumbers ? currentNumbers.colNumbers[i] : '?';
+                    return (
+                      <div 
+                        key={i} 
+                        className={`${gridSize === '5x5' ? 'w-12 sm:w-14 h-8 sm:h-10' : 'w-8 sm:w-11 h-8 sm:h-10'} flex items-center justify-center rounded-t-lg ${
+                          currentNumbers ? 'bg-[#002244]/80' : 'bg-white/5'
+                        }`}
+                      >
+                        <span className={`${gridSize === '5x5' ? 'text-xs sm:text-sm' : 'text-sm sm:text-lg'} font-bold ${currentNumbers ? 'text-[#C60C30]' : 'text-gray-600'}`}>
+                          {displayNum}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
                 
                 {/* Grid rows */}
                 <div className="flex">
                   {/* Seahawks label (rows) */}
-                  <div className="flex flex-col items-center justify-center w-12 mr-0">
+                  <div className={`flex flex-col items-center justify-center ${gridSize === '5x5' ? 'w-10 sm:w-12' : 'w-8 sm:w-12'}`}>
                     <div className="flex items-center gap-1 transform -rotate-90 whitespace-nowrap">
-                      <span className="text-sm font-bold text-white px-2 py-1 rounded-full bg-[#002244] border border-[#69BE28]/50">
-                        {SUPER_BOWL.teams.nfc.emoji} {SUPER_BOWL.teams.nfc.shortName}
+                      <img src={SUPER_BOWL.teams.nfc.logo} alt="" className="w-5 h-5 sm:w-6 sm:h-6 rotate-90" />
+                      <span className="text-xs font-bold text-white px-1 py-0.5 rounded-full bg-[#002244] border border-[#69BE28]/50 hidden sm:inline">
+                        {SUPER_BOWL.teams.nfc.shortName}
                       </span>
                     </div>
                   </div>
                   
                   {/* Grid with row numbers */}
                   <div>
-                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(row => (
-                      <div key={row} className="flex">
-                        {/* Row number - Seahawks colors */}
-                        <div className={`w-11 h-11 flex items-center justify-center rounded-l-lg ${
-                          currentNumbers ? 'bg-[#002244]/80' : 'bg-white/5'
-                        }`}>
-                          <span className={`text-lg font-bold ${currentNumbers ? 'text-[#69BE28]' : 'text-gray-600'}`}>
-                            {currentNumbers ? currentNumbers.rowNumbers[row] : '?'}
-                          </span>
-                        </div>
-                        
-                        {/* Squares */}
-                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(col => {
-                          const index = row * 10 + col;
-                          const square = group.squares[index];
-                          const isSelected = selectedSquares.includes(index);
-                          const isOwn = square.owner && publicKey && square.owner === publicKey.toString();
-                          const isWinner = group.quarterResults.some(r => getWinningSquareIndex(r) === index);
+                    {Array.from({ length: gridDimension }).map((_, row) => {
+                      // For 5x5, show the pair of numbers
+                      const displayNum = gridSize === '5x5' && currentNumbers
+                        ? `${currentNumbers.rowNumbers[row*2]},${currentNumbers.rowNumbers[row*2+1]}`
+                        : currentNumbers ? currentNumbers.rowNumbers[row] : '?';
+                      
+                      return (
+                        <div key={row} className="flex">
+                          {/* Row number - Seahawks colors */}
+                          <div className={`${gridSize === '5x5' ? 'w-12 sm:w-14 h-12 sm:h-14' : 'w-8 sm:w-11 h-8 sm:h-11'} flex items-center justify-center rounded-l-lg ${
+                            currentNumbers ? 'bg-[#002244]/80' : 'bg-white/5'
+                          }`}>
+                            <span className={`${gridSize === '5x5' ? 'text-xs sm:text-sm' : 'text-sm sm:text-lg'} font-bold ${currentNumbers ? 'text-[#69BE28]' : 'text-gray-600'}`}>
+                              {displayNum}
+                            </span>
+                          </div>
                           
-                          return (
-                            <button
-                              key={col}
-                              onClick={() => handleSquareClick(index)}
-                              disabled={!!square.owner || group.status !== 'open'}
-                              className={`w-11 h-11 border border-white/10 text-xs font-medium transition-all flex items-center justify-center
-                                ${isWinner 
-                                  ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black ring-2 ring-yellow-300 animate-pulse' 
-                                  : square.owner 
-                                    ? isOwn 
-                                      ? 'bg-gradient-to-br from-purple-500 to-purple-700 text-white cursor-default shadow-lg shadow-purple-500/20' 
-                                      : 'bg-white/10 text-gray-400 cursor-default'
-                                    : isSelected
-                                      ? 'bg-gradient-to-br from-green-500 to-green-700 text-white shadow-lg shadow-green-500/20'
-                                      : group.status === 'open'
-                                        ? 'bg-white/5 hover:bg-white/15 hover:border-white/30 text-gray-500 cursor-pointer'
-                                        : 'bg-white/5 text-gray-600 cursor-default'
-                                }
-                              `}
-                            >
-                              {isWinner ? '🏆' : square.ownerDisplay || (isSelected ? '✓' : '')}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ))}
+                          {/* Squares */}
+                          {Array.from({ length: gridDimension }).map((_, col) => {
+                            const index = row * gridDimension + col;
+                            const square = group.squares[index];
+                            const isSelected = selectedSquares.includes(index);
+                            const isOwn = square?.owner && publicKey && square.owner === publicKey.toString();
+                            const isWinner = group.quarterResults.some(r => getWinningSquareIndex(r) === index);
+                            
+                            return (
+                              <button
+                                key={col}
+                                onClick={() => handleSquareClick(index)}
+                                disabled={!!square?.owner || group.status !== 'open'}
+                                className={`${gridSize === '5x5' ? 'w-12 sm:w-14 h-12 sm:h-14 text-xs sm:text-sm' : 'w-8 sm:w-11 h-8 sm:h-11 text-[10px] sm:text-xs'} border border-white/10 font-medium transition-all flex items-center justify-center
+                                  ${isWinner 
+                                    ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black ring-2 ring-yellow-300 animate-pulse' 
+                                    : square?.owner 
+                                      ? isOwn 
+                                        ? 'bg-gradient-to-br from-purple-500 to-purple-700 text-white cursor-default shadow-lg shadow-purple-500/20' 
+                                        : 'bg-white/10 text-gray-400 cursor-default'
+                                      : isSelected
+                                        ? 'bg-gradient-to-br from-green-500 to-green-700 text-white shadow-lg shadow-green-500/20'
+                                        : group.status === 'open'
+                                          ? 'bg-white/5 hover:bg-white/15 hover:border-white/30 text-gray-500 cursor-pointer active:scale-95'
+                                          : 'bg-white/5 text-gray-600 cursor-default'
+                                  }
+                                `}
+                              >
+                                {isWinner ? '🏆' : square?.ownerDisplay || (isSelected ? '✓' : '')}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

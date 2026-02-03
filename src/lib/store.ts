@@ -11,6 +11,7 @@ import {
   shortenWallet,
   SUPER_BOWL,
   calculatePrizeBreakdown,
+  GRID_CONFIGS,
 } from './types';
 
 const STORAGE_KEY = 'sbboxes_v3';
@@ -57,8 +58,12 @@ export function createGroup(input: CreateGroupInput, creatorWallet: string): Gro
   const groups = getAllGroups();
   const id = generateId();
   
+  // Get grid config
+  const gridConfig = GRID_CONFIGS[input.gridSize];
+  const totalSquares = gridConfig.totalSquares;
+  
   // Create empty squares
-  const squares: Square[] = Array(100).fill(null).map((_, i) => ({
+  const squares: Square[] = Array(totalSquares).fill(null).map((_, i) => ({
     index: i,
     owner: null,
     ownerDisplay: null,
@@ -76,6 +81,7 @@ export function createGroup(input: CreateGroupInput, creatorWallet: string): Gro
     inviteCode: input.visibility === 'private' ? generateInviteCode() : null,
     payouts: input.payouts,
     numberRandomization: input.numberRandomization,
+    gridSize: input.gridSize,
     creator: creatorWallet,
     creatorDisplay: shortenWallet(creatorWallet),
     createdAt: Date.now(),
@@ -109,11 +115,14 @@ export function purchaseSquares(
   
   if (!group) return null;
   
+  const gridConfig = GRID_CONFIGS[group.gridSize || '10x10'];
+  const totalSquares = gridConfig.totalSquares;
+  
   const buyerDisplay = shortenWallet(buyerWallet);
   const now = Date.now();
   
   squareIndices.forEach(index => {
-    if (index >= 0 && index < 100 && !group.squares[index].owner) {
+    if (index >= 0 && index < totalSquares && !group.squares[index].owner) {
       group.squares[index] = {
         index,
         owner: buyerWallet,
@@ -125,7 +134,7 @@ export function purchaseSquares(
   
   // Check if full
   const filledCount = group.squares.filter(s => s.owner !== null).length;
-  if (filledCount === 100) {
+  if (filledCount === totalSquares) {
     group.status = 'full';
   }
   
@@ -142,8 +151,10 @@ export function lockGroup(groupId: string): Group | null {
   
   if (!group) return null;
   
+  const gridSize = group.gridSize || '10x10';
+  
   // Assign numbers based on randomization setting
-  const assignment = generateNumberAssignment();
+  const assignment = generateNumberAssignment(gridSize);
   
   if (group.numberRandomization === 'fixed') {
     // Same numbers for all quarters
@@ -156,7 +167,7 @@ export function lockGroup(groupId: string): Group | null {
     };
   } else if (group.numberRandomization === 'per-half') {
     // Different for each half
-    const secondHalf = generateNumberAssignment();
+    const secondHalf = generateNumberAssignment(gridSize);
     group.numbers = {
       current: assignment,
       q1: assignment,
@@ -169,9 +180,9 @@ export function lockGroup(groupId: string): Group | null {
     group.numbers = {
       current: assignment,
       q1: assignment,
-      q2: generateNumberAssignment(),
-      q3: generateNumberAssignment(),
-      q4: generateNumberAssignment(),
+      q2: generateNumberAssignment(gridSize),
+      q3: generateNumberAssignment(gridSize),
+      q4: generateNumberAssignment(gridSize),
     };
   }
   

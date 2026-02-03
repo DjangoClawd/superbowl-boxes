@@ -145,18 +145,18 @@ export default function JoinPage() {
                       </div>
                     </div>
                     
-                    <div className="flex flex-wrap gap-6 text-sm">
+                    <div className="flex flex-wrap gap-4 sm:gap-6 text-sm">
                       <div>
-                        <span className="text-gray-500">Squares:</span>
-                        <span className="text-white ml-2 font-medium">{filledSquares}/100</span>
+                        <span className="text-gray-500">Grid:</span>
+                        <span className="text-white ml-2 font-medium">{group.gridSize || '10x10'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Filled:</span>
+                        <span className="text-white ml-2 font-medium">{filledSquares}/{group.gridSize === '5x5' ? 25 : 100}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">Pool:</span>
                         <span className="text-purple-400 ml-2 font-medium">{totalPool.toFixed(2)} {group.currency}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Numbers:</span>
-                        <span className="text-white ml-2 font-medium capitalize">{group.numberRandomization.replace('-', ' ')}</span>
                       </div>
                     </div>
                     

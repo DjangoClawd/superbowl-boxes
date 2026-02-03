@@ -18,6 +18,7 @@ export const SUPER_BOWL = {
       primaryColor: '#002244',  // Navy blue
       secondaryColor: '#C60C30', // Red
       emoji: '🔴',
+      logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
     },
     nfc: {
       name: 'Seattle Seahawks',
@@ -26,8 +27,17 @@ export const SUPER_BOWL = {
       primaryColor: '#002244',  // College Navy
       secondaryColor: '#69BE28', // Action Green
       emoji: '🟢',
+      logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
     },
   },
+} as const;
+
+// Grid size options
+export type GridSize = '10x10' | '5x5';
+
+export const GRID_CONFIGS = {
+  '10x10': { size: 10, totalSquares: 100, label: '10×10 (100 squares)' },
+  '5x5': { size: 5, totalSquares: 25, label: '5×5 (25 squares)' },
 } as const;
 
 // Platform fee is FIXED - this is what the website takes
@@ -109,6 +119,7 @@ export interface Group {
   inviteCode: string | null; // For private groups
   payouts: PayoutSettings;
   numberRandomization: NumberRandomization;
+  gridSize: GridSize;
   
   // Creator info
   creator: string; // Wallet address
@@ -142,6 +153,7 @@ export interface CreateGroupInput {
   visibility: LobbyVisibility;
   payouts: PayoutSettings;
   numberRandomization: NumberRandomization;
+  gridSize: GridSize;
 }
 
 // Helper to generate unique IDs
@@ -170,7 +182,19 @@ export function shuffleArray<T>(array: T[]): T[] {
 }
 
 // Generate random number assignment
-export function generateNumberAssignment(): NumberAssignment {
+export function generateNumberAssignment(gridSize: GridSize = '10x10'): NumberAssignment {
+  if (gridSize === '5x5') {
+    // For 5x5, each cell covers 2 numbers
+    // We shuffle pairs: [0,1], [2,3], [4,5], [6,7], [8,9]
+    const pairs = [[0,1], [2,3], [4,5], [6,7], [8,9]];
+    const shuffledRows = shuffleArray([...pairs]);
+    const shuffledCols = shuffleArray([...pairs]);
+    return {
+      rowNumbers: shuffledRows.flat(),
+      colNumbers: shuffledCols.flat(),
+      assignedAt: Date.now(),
+    };
+  }
   return {
     rowNumbers: shuffleArray([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
     colNumbers: shuffleArray([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
@@ -182,10 +206,19 @@ export function generateNumberAssignment(): NumberAssignment {
 export function findWinningSquare(
   nfcScore: number,
   afcScore: number,
-  numbers: NumberAssignment
+  numbers: NumberAssignment,
+  gridSize: GridSize = '10x10'
 ): number | null {
   const nfcDigit = nfcScore % 10;
   const afcDigit = afcScore % 10;
+  
+  if (gridSize === '5x5') {
+    // For 5x5, find which pair contains each digit
+    const rowIndex = Math.floor(numbers.rowNumbers.indexOf(nfcDigit) / 2);
+    const colIndex = Math.floor(numbers.colNumbers.indexOf(afcDigit) / 2);
+    if (rowIndex === -1 || colIndex === -1) return null;
+    return rowIndex * 5 + colIndex;
+  }
   
   const rowIndex = numbers.rowNumbers.indexOf(nfcDigit);
   const colIndex = numbers.colNumbers.indexOf(afcDigit);
